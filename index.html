@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบหนังสือรับ - โรงเรียนบ้านสันดาบ</title>
+  <meta name="description"
+    content="ระบบหนังสือรับราชการอิเล็กทรอนิกส์ พร้อมระบบประทับตราอัตโนมัติ โรงเรียนบ้านสันดาบ สพป.สมุทรสาคร">
+
+  <!-- Google Fonts: Sarabun & Kanit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+    rel="stylesheet">
+
+  <!-- Font Awesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- PDF-Lib Library for Client-Side PDF Stamping -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- ========================================================================
+       Header & Brand Navigation
+       ======================================================================== -->
+  <header class="header-banner">
+    <div class="header-container">
+      <div class="brand-wrapper">
+        <div class="school-logo-badge">
+          <i class="fa-solid fa-graduation-cap"></i>
+        </div>
+        <div class="brand-text">
+          <h1>ระบบหนังสือรับอิเล็กทรอนิกส์</h1>
+          <p>
+            <i class="fa-solid fa-school"></i> โรงเรียนบ้านสันดาบ
+            <span>|</span>
+            <i class="fa-solid fa-landmark"></i> สพป.สมุทรสาคร
+          </p>
+        </div>
+      </div>
+
+      <div class="header-status-bar">
+        <button type="button" class="gas-badge-btn connected" id="gasStatusBtn" onclick="openGasModal()" title="เชื่อมต่อ Google Sheet แล้ว คลิกเพื่อดูรายละเอียดหรือแก้ไข">
+          <i class="fa-solid fa-cloud-check"></i> <span id="gasStatusText">เชื่อมต่อ Google Sheet แล้ว</span>
+        </button>
+        <div class="clock-widget" id="liveClock">
+          <i class="fa-regular fa-clock"></i> <span>กำลังโหลดเวลา...</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       Main Application Container with Sidebar Layout
+       ======================================================================== -->
+  <main class="main-wrapper">
+    <div class="app-layout">
+      <!-- ================================================================
+           Left Sidebar Navigation (แถบเมนูด้านซ้าย)
+           ================================================================ -->
+      <aside class="sidebar-nav" id="sidebarNav">
+        <!-- แถบหัวข้อและปุ่มพับ/ขยายเมนู -->
+        <div class="sidebar-header">
+          <span class="sidebar-header-title">
+            <i class="fa-solid fa-bars-staggered text-primary"></i> เมนูหลัก
+          </span>
+          <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="toggleSidebar()" title="พับ / ขยาย แถบเมนู">
+            <i class="fa-solid fa-angles-left" id="sidebarToggleIcon"></i>
+          </button>
+        </div>
+
+        <!-- เมนูกลุ่ม 1: หนังสือรับ -->
+        <div class="nav-group">
+          <div class="nav-group-title" title="หนังสือรับ">
+            <i class="fa-solid fa-inbox text-primary"></i> <span>หนังสือรับ</span>
+          </div>
+          <div class="nav-sub-items">
+            <button type="button" class="sidebar-btn active" id="sideNavReceive" onclick="switchMainSection('receive')" title="ลงรับหนังสือ">
+              <span class="sidebar-btn-content">
+                <i class="fa-solid fa-stamp"></i> <span class="nav-label">ลงรับหนังสือ</span>
+              </span>
+              <span class="nav-pill" id="sideBadgeReceive">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- เมนูกลุ่ม 2: ทะเบียนหนังสือส่ง -->
+        <div class="nav-group">
+          <div class="nav-group-title" title="ทะเบียนหนังสือส่ง">
+            <i class="fa-solid fa-paper-plane text-primary"></i> <span>ทะเบียนหนังสือส่ง</span>
+          </div>
+          <div class="nav-sub-items">
+            <button type="button" class="sidebar-btn" id="sideNavOutbound" onclick="switchMainSection('outbound')" title="ลงหนังสือส่ง">
+              <span class="sidebar-btn-content">
+                <i class="fa-solid fa-share-from-square"></i> <span class="nav-label">ลงหนังสือส่ง</span>
+              </span>
+              <span class="nav-pill" id="sideBadgeOutbound">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- เมนูกลุ่ม 3: หนังสือคำสั่ง -->
+        <div class="nav-group">
+          <div class="nav-group-title" title="หนังสือคำสั่ง">
+            <i class="fa-solid fa-scroll text-primary"></i> <span>หนังสือคำสั่ง</span>
+          </div>
+          <div class="nav-sub-items">
+            <button type="button" class="sidebar-btn" id="sideNavOrder" onclick="switchMainSection('order')" title="ลงคำสั่ง">
+              <span class="sidebar-btn-content">
+                <i class="fa-solid fa-file-signature"></i> <span class="nav-label">ลงคำสั่ง</span>
+              </span>
+              <span class="nav-pill" id="sideBadgeOrder">0</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ================================================================
+           Right Body Content (เนื้อหาหลักด้านขวา)
+           ================================================================ -->
+      <div class="app-body-content">
+
+        <!-- ==============================================================
+             SECTION 1: หนังสือรับ (Inbound) - แสดงปุ่มเดิมทั้งหมดใน Body
+             ============================================================== -->
+        <div class="main-section-content active" id="main-section-receive">
+          <!-- KPI Summary Counters -->
+          <section class="stats-grid">
+      <div class="stat-card blue">
+        <div class="stat-info">
+          <h4>หนังสือรับทั้งหมด</h4>
+          <div class="stat-number" id="statTotal">0</div>
+        </div>
+        <div class="stat-icon blue">
+          <i class="fa-solid fa-inbox"></i>
+        </div>
+      </div>
+
+      <div class="stat-card amber">
+        <div class="stat-info">
+          <h4>รอเสนอ ผอ. (ตราปั้ม 2)</h4>
+          <div class="stat-number" id="statProposal">0</div>
+        </div>
+        <div class="stat-icon amber">
+          <i class="fa-solid fa-file-export"></i>
+        </div>
+      </div>
+
+      <div class="stat-card cyan">
+        <div class="stat-info">
+          <h4>รอ ผอ. ลงนาม (ตราปั้ม 3)</h4>
+          <div class="stat-number" id="statDirector">0</div>
+        </div>
+        <div class="stat-icon cyan">
+          <i class="fa-solid fa-signature"></i>
+        </div>
+      </div>
+
+      <div class="stat-card green">
+        <div class="stat-info">
+          <h4>ดำเนินการเสร็จสิ้น</h4>
+          <div class="stat-number" id="statCompleted">0</div>
+        </div>
+        <div class="stat-icon green">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-navigation">
+      <button type="button" class="tab-btn active" data-tab="receive" id="tabBtnReceive">
+        <i class="fa-solid fa-stamp"></i> ลงรับหนังสือ
+      </button>
+
+      <button type="button" class="tab-btn" data-tab="pending" id="tabBtnPending">
+        <i class="fa-solid fa-file-signature"></i> รอลงนาม
+        <span class="tab-badge" id="badgePendingCount">0</span>
+      </button>
+
+      <button type="button" class="tab-btn" data-tab="search" id="tabBtnSearch">
+        <i class="fa-solid fa-magnifying-glass"></i> ทะเบียนประวัติ / ค้นหา
+      </button>
+    </nav>
+
+    <!-- ======================================================================
+         TAB 1: ลงรับหนังสือราชการ (Inbound Book Registration & Stamp 1)
+         ====================================================================== -->
+    <section class="tab-content active" id="tab-receive">
+      <div class="card-section">
+        <div class="card-header-styled">
+          <div class="card-title-group">
+            <div class="card-title-icon">
+              <i class="fa-solid fa-inbox"></i>
+            </div>
+            <div>
+              <h2>แบบฟอร์มลงรับหนังสือราชการ</h2>
+              <p style="font-size: 13px; color: #64748b;">ตราปั้มหนังสือรับจะปรากฏที่มุมบนขวาของไฟล์แนบทันทีหลังกดบันทึก
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form id="inboundForm" onsubmit="saveInboundDocument(event)">
+          <div class="form-grid-3">
+            <!-- ช่องเลขหนังสือรับ -->
+            <div class="form-group">
+              <label class="form-label" for="bookNo">
+                <i class="fa-solid fa-hashtag text-primary"></i> เลขหนังสือรับ <span class="required">*</span>
+              </label>
+              <div class="input-with-hint">
+                <input type="text" id="bookNo" class="form-control" placeholder="เลขล่าสุด: 0001/2569" required
+                  autocomplete="off" oninput="updateInboundStampPreview()">
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 3px;">
+                <span class="input-hint-badge" id="latestBookNoHint">กำลังตรวจสอบเลขล่าสุด...</span>
+                <button type="button" class="btn-edit-sm" onclick="useNextSequentialBookNo()"
+                  style="padding: 2px 8px; font-size: 11.5px;">
+                  + เลขถัดไป
+                </button>
+              </div>
+            </div>
+
+            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ.) -->
+            <div class="form-group">
+              <label class="form-label" for="receiveDate">
+                <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span
+                  class="required">*</span>
+              </label>
+              <input type="text" id="receiveDate" class="form-control" placeholder="17/10/2569" required
+                oninput="updateInboundStampPreview()">
+            </div>
+
+            <!-- เวลา (แสดงอัตโนมัติ) -->
+            <div class="form-group">
+              <label class="form-label" for="receiveTime">
+                <i class="fa-regular fa-clock text-primary"></i> เวลา <span class="required">*</span>
+              </label>
+              <input type="text" id="receiveTime" class="form-control" placeholder="16:00 น." required
+                oninput="updateInboundStampPreview()">
+            </div>
+          </div>
+
+          <!-- เรื่อง / จากหน่วยงาน และ ไฟล์แนบหนังสือรับ อยู่แถวเดียวกัน -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; align-items: flex-start;">
+            <div class="form-group">
+              <label class="form-label" for="docTitle">
+                <i class="fa-solid fa-align-left text-primary"></i> เรื่อง / จากหน่วยงาน
+              </label>
+              <textarea id="docTitle" class="form-control" rows="2" style="height: 52px; resize: none; font-size: 13.5px;"
+                placeholder="ระบุเรื่อง หรือหน่วยงานต้นเรื่อง (เช่น จาก สพป.สมุทรสาคร เรื่อง...)"></textarea>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                <i class="fa-solid fa-paperclip text-primary"></i> ไฟล์แนบหนังสือรับ (.pdf หรือไฟล์ภาพ .jpg, .png)
+              </label>
+              <div class="file-dropzone" id="fileDropzone" style="padding: 6px 14px; min-height: 52px;">
+                <input type="file" id="docFileInput" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;">
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 20px;"></i>
+                <div>
+                  <p style="font-size: 12.5px; margin: 0;">ลากไฟล์ .pdf หรือภาพมาวาง หรือคลิกเพื่อเลือกไฟล์</p>
+                  <span style="font-size: 11px;">รองรับไฟล์เอกสาร PDF และไฟล์รูปภาพ (.pdf, .jpg, .png)</span>
+                </div>
+              </div>
+              <div id="selectedFilePreview"></div>
+            </div>
+          </div>
+
+          <!-- ตัวอย่างตราปั้มหนังสือรับที่จะปรากฏเมื่อกดบันทึก -->
+          <div
+            style="margin-top: 10px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span style="font-size: 12px; font-weight: 600; color: #1e40af;">
+                <i class="fa-solid fa-stamp text-primary"></i> ภาพตัวอย่างตราปั้มหนังสือรับมุมบนขวา
+                (ข้อความอยู่เหนือเส้นจุด ขนาดพอดี)
+              </span>
+            </div>
+            <div id="inboundStampPreviewContainer"
+              style="display: flex; justify-content: center; align-items: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px; min-height: 70px;">
+              <!-- Rendered via updateInboundStampPreview() -->
+            </div>
+          </div>
+
+          <!-- ปุ่มบันทึกข้อมูล -->
+          <div style="margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="submit" class="btn btn-primary" id="saveInboundBtn">
+              <i class="fa-solid fa-stamp"></i> บันทึกข้อมูลและประทับตรา
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- รายการหนังสือรับ (Table Below) -->
+      <div class="card-section">
+        <div class="card-header-styled">
+          <div class="card-title-group">
+            <div class="card-title-icon">
+              <i class="fa-solid fa-list-check"></i>
+            </div>
+            <div>
+              <h2>รายการหนังสือรับ</h2>
+              <p style="font-size: 12px; color: #64748b;">รายการหนังสือราชการที่ลงรับในระบบแล้ว (แสดง 5 รายการล่าสุด)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table" id="inboundTable">
+            <thead>
+              <tr>
+                <th style="width: 60px; text-align: center;">ลำดับ</th>
+                <th>เลขหนังสือรับ</th>
+                <th>วันที่รับ</th>
+                <th>ไฟล์หนังสือรับ</th>
+                <th>สถานะ</th>
+                <th style="text-align: center; width: 160px;">ช่องจัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="inboundTableBody">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination / Load More Bar -->
+        <div id="inboundPaginationBar"
+          style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9;">
+          <span id="inboundRecordCountText" style="font-size: 12px; color: #64748b;">แสดง 0 รายการ</span>
+          <button type="button" class="btn btn-outline btn-sm" id="btnToggleInboundShowAll"
+            onclick="toggleShowAllInbound()" style="display: none; padding: 4px 12px; font-size: 12px;">
+            <i class="fa-solid fa-angles-down"></i> เพิ่มเติม (ดูทั้งหมด)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 2: รอลงนาม (Pending Signature / Routing Flow)
+         ====================================================================== -->
+    <section class="tab-content" id="tab-pending">
+      <div class="card-section">
+        <div class="card-header-styled">
+          <div class="card-title-group">
+            <div class="card-title-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+              <i class="fa-solid fa-file-signature"></i>
+            </div>
+            <div>
+              <h2>รายการหนังสือรับ (รอลงนาม / การสั่งการ)</h2>
+              <p style="font-size: 13px; color: #64748b;">ขั้นตอนการเสนอ ผอ. (ตราปั้มด้านซ้ายล่าง) และความคิดเห็น ผอ.
+                พร้อมมอบหมายผู้รับผิดชอบ (ตราปั้มด้านขวาล่าง)</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table" id="pendingTable">
+            <thead>
+              <tr>
+                <th style="width: 60px; text-align: center;">ลำดับ</th>
+                <th>เลขหนังสือรับ</th>
+                <th>วันที่รับ</th>
+                <th>เรื่อง</th>
+                <th>ผู้รับผิดชอบ</th>
+                <th>สถานะ</th>
+                <th style="text-align: center; width: 260px;">ดำเนินการ</th>
+              </tr>
+            </thead>
+            <tbody id="pendingTableBody">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination / Load More Bar -->
+        <div id="pendingPaginationBar"
+          style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid #f1f5f9;">
+          <span id="pendingRecordCountText" style="font-size: 12px; color: #64748b;">แสดง 0 รายการ</span>
+          <button type="button" class="btn btn-outline btn-sm" id="btnTogglePendingShowAll"
+            onclick="toggleShowAllPending()" style="display: none; padding: 4px 12px; font-size: 12px;">
+            <i class="fa-solid fa-angles-down"></i> เพิ่มเติม (ดูทั้งหมด)
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 3: ทะเบียนประวัติ / ค้นหา (Search & Archive)
+         ====================================================================== -->
+    <section class="tab-content" id="tab-search">
+      <div class="card-section">
+        <div class="card-header-styled">
+          <div class="card-title-group">
+            <div class="card-title-icon" style="background: linear-gradient(135deg, #06b6d4, #0284c7);">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+            <div>
+              <h2>ค้นหาทะเบียนหนังสือรับ</h2>
+              <p style="font-size: 13px; color: #64748b;">สืบค้นประวัติหนังสือรับ เลขที่ เรื่อง หรือผู้รับผิดชอบ</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid-2" style="margin-bottom: 22px;">
+          <div class="form-group">
+            <label class="form-label" for="searchQuery">
+              <i class="fa-solid fa-search text-primary"></i> คำค้นหา
+            </label>
+            <input type="text" id="searchQuery" class="form-control"
+              placeholder="พิมพ์เลขหนังสือ, เรื่อง, หรือชื่อผู้รับผิดชอบ..." oninput="filterRecords()">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="searchStatusFilter">
+              <i class="fa-solid fa-filter text-primary"></i> กรองตามสถานะ
+            </label>
+            <select id="searchStatusFilter" class="form-control" onchange="filterRecords()">
+              <option value="">ทั้งหมดทุกสถานะ</option>
+              <option value="รอเสนอ ผอ.">รอเสนอ ผอ.</option>
+              <option value="รอ ผอ. ลงนาม">รอ ผอ. ลงนาม</option>
+              <option value="เสร็จสิ้น">เสร็จสิ้น</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th style="width: 70px; text-align: center;">ลำดับ</th>
+                <th>เลขหนังสือรับ</th>
+                <th>วันที่รับ</th>
+                <th>เรื่อง</th>
+                <th>ผู้รับผิดชอบ</th>
+                <th>สถานะ</th>
+                <th style="width: 140px; text-align: center;">เอกสาร</th>
+              </tr>
+            </thead>
+            <tbody id="searchTableBody">
+              <!-- Dynamically rendered -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         TAB 4: การตั้งค่าระบบ & เชื่อมต่อ Google Apps Script (ซ่อนไว้สำหรับเชื่อมต่อเบื้องหลัง)
+         ====================================================================== -->
+    <section class="tab-content" id="tab-settings" style="display: none !important;">
+      <div class="card-section">
+        <div class="card-header-styled">
+          <div class="card-title-group">
+            <div class="card-title-icon" style="background: linear-gradient(135deg, #1e40af, #3b82f6);">
+              <i class="fa-solid fa-sliders"></i>
+            </div>
+            <div>
+              <h2>การเชื่อมต่อ Google Workspace</h2>
+              <p style="font-size: 13px; color: #64748b;">ฐานข้อมูล Google Sheet และโฟลเดอร์ Google Drive
+                สำหรับจัดเก็บไฟล์</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Connection Cards Grid -->
+        <div class="form-grid-3" style="margin-bottom: 24px;">
+          <div class="stat-card blue" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <span style="font-size: 12px; color:#2563eb; font-weight:600;"><i class="fa-solid fa-users"></i>
+              ฐานข้อมูลครู (Sheet Teachers)</span>
+            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">ID: 1jqxY...AOBnsA</div>
+            <div style="font-size: 12px; color: #10b981;"><i class="fa-solid fa-circle-check"></i>
+              ดึงชื่อ-นามสกุลครูอัตโนมัติ</div>
+          </div>
+
+          <div class="stat-card amber" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <span style="font-size: 12px; color:#d97706; font-weight:600;"><i class="fa-solid fa-table"></i>
+              ฐานข้อมูลบันทึกหนังสือรับ</span>
+            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">ID: 1iyrts...1QBqK8</div>
+            <div style="font-size: 12px; color: #10b981;"><i class="fa-solid fa-circle-check"></i>
+              พร้อมบันทึกข้อมูลและสถานะ</div>
+          </div>
+
+          <div class="stat-card green" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+            <span style="font-size: 12px; color:#059669; font-weight:600;"><i class="fa-solid fa-folder"></i>
+              โฟลเดอร์จัดเก็บไฟล์ (Drive)</span>
+            <div style="font-size: 13px; font-weight: 600; color: #1e3a5f;">ID: 136nyr...5uoLEj</div>
+            <div style="font-size: 12px; color: #10b981;"><i class="fa-solid fa-circle-check"></i>
+              รองรับการอัพโหลดไฟล์ประทับตรา</div>
+          </div>
+        </div>
+
+        <!-- Google Apps Script URL Setting -->
+        <div class="form-group" style="margin-bottom: 18px;">
+          <label class="form-label" for="gasUrlInput">
+            <i class="fa-solid fa-link text-primary"></i> Google Apps Script Web App URL
+            (ตัวเลือกเพื่อซิงค์ข้อมูลคลาวด์แบบเรียลไทม์)
+          </label>
+          <input type="url" id="gasUrlInput" class="form-control"
+            placeholder="https://script.google.com/macros/s/.../exec">
+          <p style="font-size: 12.5px; color: #64748b; margin-top: 4px;">
+            หากนำไฟล์ <code>Code.gs</code> ไปติดตั้งใน Google Apps Script ให้คัดลอก URL ของ Web App
+            มาวางที่นี่เพื่อซิงค์บันทึกข้อมูลเข้า Google Sheet และ Google Drive อัตโนมัติ
+          </p>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveGasSettings()">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+        </button>
+      </div>
+    </section>
+        </div><!-- End #main-section-receive -->
+
+        <!-- ==============================================================
+             SECTION 2: ทะเบียนหนังสือส่ง (Outbound Documents)
+             ============================================================== -->
+        <div class="main-section-content" id="main-section-outbound">
+          <!-- Card 1: แบบฟอร์มลงหนังสือส่ง -->
+          <div class="card-section">
+            <div class="card-header-styled">
+              <div class="card-title-group">
+                <div class="card-title-icon" style="background: linear-gradient(135deg, #2563eb, #1d4ed8);">
+                  <i class="fa-solid fa-paper-plane"></i>
+                </div>
+                <div>
+                  <h2>แบบฟอร์มลงทะเบียนหนังสือส่ง</h2>
+                  <p style="font-size: 13px; color: #64748b;">บันทึกข้อมูลและออกเลขทะเบียนหนังสือส่ง โรงเรียนบ้านสันดาบ</p>
+                </div>
+              </div>
+            </div>
+
+            <form id="outboundForm" onsubmit="saveOutboundDocument(event)">
+              <div class="form-grid-3">
+                <!-- เลขหนังสือส่ง -->
+                <div class="form-group">
+                  <label class="form-label" for="outboundNo">
+                    <i class="fa-solid fa-hashtag text-primary"></i> เลขหนังสือส่ง <span class="required">*</span>
+                  </label>
+                  <input type="text" id="outboundNo" class="form-control" placeholder="เช่น ศธ 04135.050/025" required>
+                </div>
+
+                <!-- ลงวันที่ (วัน/เดือน/ปี ช่องเดียวกัน) -->
+                <div class="form-group">
+                  <label class="form-label" for="outboundDate">
+                    <i class="fa-regular fa-calendar-days text-primary"></i> ลงวันที่ (วัน/เดือน/ปี พ.ศ.) <span class="required">*</span>
+                  </label>
+                  <input type="text" id="outboundDate" class="form-control" placeholder="17/10/2569" required>
+                </div>
+
+                <!-- เรื่อง -->
+                <div class="form-group">
+                  <label class="form-label" for="outboundTitle">
+                    <i class="fa-solid fa-heading text-primary"></i> เรื่อง <span class="required">*</span>
+                  </label>
+                  <input type="text" id="outboundTitle" class="form-control" placeholder="ระบุชื่อเรื่องของหนังสือส่ง..." required>
+                </div>
+              </div>
+
+              <!-- จาก และ ถึง อยู่บรรทัดเดียวกัน -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                <!-- จาก (แสดงคำว่าผู้อำนวยการไว้เลย และสามารถแก้ไขได้) -->
+                <div class="form-group">
+                  <label class="form-label" for="outboundFrom">
+                    <i class="fa-solid fa-building-user text-primary"></i> จาก (ผู้ส่ง) <span class="required">*</span>
+                  </label>
+                  <input type="text" id="outboundFrom" class="form-control" value="ผู้อำนวยการโรงเรียนบ้านสันดาบ" placeholder="ระบุผู้ส่ง หรือหน่วยงาน" required>
+                </div>
+
+                <!-- ถึง -->
+                <div class="form-group">
+                  <label class="form-label" for="outboundTo">
+                    <i class="fa-solid fa-location-arrow text-primary"></i> ถึง (ผู้รับ) <span class="required">*</span>
+                  </label>
+                  <input type="text" id="outboundTo" class="form-control" placeholder="เช่น ผู้อำนวยการ สพป.สมุทรสาคร" required>
+                </div>
+              </div>
+
+              <!-- ช่องแนบไฟล์เอกสาร และปุ่ม ล้างข้อมูล/บันทึก อยู่แถวเดียวกัน (ไม่กว้างหรือสูงเทอะทะเกินไป) -->
+              <div style="display: flex; gap: 12px; align-items: flex-end; margin-top: 10px; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 280px;">
+                  <label class="form-label">
+                    <i class="fa-solid fa-paperclip text-primary"></i> ช่องแนบไฟล์เอกสาร (PDF หรือรูปภาพ)
+                  </label>
+                  <div class="file-dropzone" id="outboundDropzone" onclick="document.getElementById('outboundFileInput').click()" style="padding: 6px 14px; min-height: 40px;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 18px;"></i>
+                    <div style="overflow: hidden;">
+                      <p id="outboundFileName" style="font-size: 12.5px; margin: 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">คลิกหรือลากไฟล์มาวางที่นี่ (PDF, JPG, PNG)</p>
+                    </div>
+                    <input type="file" id="outboundFileInput" accept=".pdf,image/*" style="display:none;" onchange="handleOutboundFileSelect(event)">
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
+                  <button type="button" class="btn btn-outline" onclick="resetOutboundForm()">
+                    <i class="fa-solid fa-rotate-left"></i> ล้างข้อมูล
+                  </button>
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกลงทะเบียนหนังสือส่ง
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- Card 2: รายการทะเบียนหนังสือส่ง และช่องจัดการ (ดาวน์โหลด, แก้ไข, ลบ) -->
+          <div class="card-section" style="margin-top: 16px;">
+            <div class="card-header-styled">
+              <div class="card-title-group">
+                <div class="card-title-icon" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+                  <i class="fa-solid fa-table-list"></i>
+                </div>
+                <div>
+                  <h2>รายการทะเบียนหนังสือส่ง</h2>
+                  <p style="font-size: 13px; color: #64748b;">ประวัติการส่งหนังสือราชการ โรงเรียนบ้านสันดาบ</p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="outboundSearchInput" class="form-control" placeholder="ค้นหาเลขที่, เรื่อง, ผู้รับ..." oninput="renderOutboundTable()" style="width: 240px;">
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px; text-align: center;">ลำดับ</th>
+                    <th style="width: 160px;">เลขหนังสือส่ง</th>
+                    <th style="width: 110px;">ลงวันที่</th>
+                    <th style="width: 180px;">จาก</th>
+                    <th style="width: 180px;">ถึง</th>
+                    <th>เรื่อง</th>
+                    <th style="width: 190px; text-align: center;">ช่องจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="outboundTableBody">
+                  <!-- Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- End #main-section-outbound -->
+
+        <!-- ==============================================================
+             SECTION 3: หนังสือคำสั่ง (Directives & Orders)
+             ============================================================== -->
+        <div class="main-section-content" id="main-section-order">
+          <!-- Card 1: แบบฟอร์มลงคำสั่ง -->
+          <div class="card-section">
+            <div class="card-header-styled">
+              <div class="card-title-group">
+                <div class="card-title-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+                  <i class="fa-solid fa-scroll"></i>
+                </div>
+                <div>
+                  <h2>แบบฟอร์มลงทะเบียนหนังสือคำสั่ง</h2>
+                  <p style="font-size: 13px; color: #64748b;">บันทึกคำสั่งโรงเรียนบ้านสันดาบและมอบหมายภาระงาน</p>
+                </div>
+              </div>
+            </div>
+
+            <form id="orderForm" onsubmit="saveOrderDocument(event)">
+              <div class="form-grid-3">
+                <!-- ที่คำสั่ง (กรอกตัวเลข โดยจะแสดงเลขที่กรอกล่าสุด จาง) -->
+                <div class="form-group">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <label class="form-label" for="orderNo">
+                      <i class="fa-solid fa-hashtag text-primary"></i> ที่คำสั่ง <span class="required">*</span>
+                    </label>
+                    <span id="orderNoHint" style="font-size: 11.5px; color: #94a3b8; font-weight: 500;">
+                      (ล่าสุด: <span id="latestOrderNoDisplay" style="color: #64748b; font-weight: 600;">-</span>)
+                    </span>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <input type="text" id="orderNo" class="form-control" placeholder="กรอกตัวเลขคำสั่ง..." required style="flex: 1;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="applyNextOrderNo()" title="คำนวณเลขคำสั่งถัดไปอัตโนมัติ" style="white-space: nowrap; padding: 4px 8px; font-size: 11.5px;">
+                      <i class="fa-solid fa-plus"></i> เลขถัดไป
+                    </button>
+                  </div>
+                </div>
+
+                <!-- วัน/เดือน/ปี ที่ลงคำสั่ง (ช่องเดียวกัน) -->
+                <div class="form-group">
+                  <label class="form-label" for="orderDate">
+                    <i class="fa-regular fa-calendar-days text-primary"></i> วัน/เดือน/ปี ที่ลงคำสั่ง <span class="required">*</span>
+                  </label>
+                  <input type="text" id="orderDate" class="form-control" placeholder="17/10/2569" required>
+                </div>
+
+                <!-- เรื่อง -->
+                <div class="form-group">
+                  <label class="form-label" for="orderTitle">
+                    <i class="fa-solid fa-heading text-primary"></i> เรื่อง <span class="required">*</span>
+                  </label>
+                  <input type="text" id="orderTitle" class="form-control" placeholder="เช่น แต่งตั้งคณะกรรมการดำเนินการสอบกลางภาค..." required>
+                </div>
+              </div>
+
+              <!-- หน้าที่ที่ได้รับมอบหมาย -->
+              <div class="form-group" style="margin-top: 10px;">
+                <label class="form-label" for="orderAssignedDuty">
+                  <i class="fa-solid fa-clipboard-list text-primary"></i> หน้าที่ที่ได้รับมอบหมาย <span class="required">*</span>
+                </label>
+                <input type="text" id="orderAssignedDuty" class="form-control" placeholder="ระบุหน้าที่ หรือคณะกรรมการที่ได้รับมอบหมาย..." required>
+              </div>
+
+              <!-- ช่องแนบไฟล์เอกสารคำสั่ง และปุ่ม อยู่แถวเดียวกัน (ไม่กว้างหรือสูงเทอะทะเกินไป) -->
+              <div style="display: flex; gap: 12px; align-items: flex-end; margin-top: 10px; flex-wrap: wrap;">
+                <div class="form-group" style="flex: 1; min-width: 280px;">
+                  <label class="form-label">
+                    <i class="fa-solid fa-paperclip text-primary"></i> ช่องแนบไฟล์เอกสารคำสั่ง (PDF หรือรูปภาพ)
+                  </label>
+                  <div class="file-dropzone" id="orderDropzone" onclick="document.getElementById('orderFileInput').click()" style="padding: 6px 14px; min-height: 40px;">
+                    <i class="fa-solid fa-cloud-arrow-up" style="font-size: 18px;"></i>
+                    <div style="overflow: hidden;">
+                      <p id="orderFileName" style="font-size: 12.5px; margin: 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">คลิกหรือลากไฟล์คำสั่งมาวางที่นี่ (PDF, JPG, PNG)</p>
+                    </div>
+                    <input type="file" id="orderFileInput" accept=".pdf,image/*" style="display:none;" onchange="handleOrderFileSelect(event)">
+                  </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 2px;">
+                  <button type="button" class="btn btn-outline" onclick="resetOrderForm()">
+                    <i class="fa-solid fa-rotate-left"></i> ล้างข้อมูล
+                  </button>
+                  <button type="submit" class="btn btn-primary" style="background: linear-gradient(135deg, #059669, #047857);">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกลงทะเบียนคำสั่ง
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          <!-- Card 2: แสดงข้อมูลรายการหนังสือคำสั่ง ใต้การบันทึก ตามรายละเอียด พร้อมช่องจัดการ -->
+          <div class="card-section" style="margin-top: 16px;">
+            <div class="card-header-styled">
+              <div class="card-title-group">
+                <div class="card-title-icon" style="background: linear-gradient(135deg, #0d9488, #0f766e);">
+                  <i class="fa-solid fa-table-list"></i>
+                </div>
+                <div>
+                  <h2>รายการทะเบียนหนังสือคำสั่ง</h2>
+                  <p style="font-size: 13px; color: #64748b;">ประวัติคำสั่งโรงเรียนบ้านสันดาบและหน้าที่ที่มอบหมาย</p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="orderSearchInput" class="form-control" placeholder="ค้นหาที่คำสั่ง, เรื่อง, หน้าที่..." oninput="renderOrderTable()" style="width: 240px;">
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th style="width: 50px; text-align: center;">ลำดับ</th>
+                    <th style="width: 120px;">ที่คำสั่ง</th>
+                    <th>เรื่อง</th>
+                    <th style="width: 120px;">วันที่ลงคำสั่ง</th>
+                    <th style="width: 220px;">หน้าที่ที่ได้รับมอบหมาย</th>
+                    <th style="width: 110px; text-align: center;">เอกสารแนบ</th>
+                    <th style="width: 170px; text-align: center;">ช่องจัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="orderTableBody">
+                  <!-- Rendered by JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div><!-- End #main-section-order -->
+
+      </div><!-- End .app-body-content -->
+    </div><!-- End .app-layout -->
+  </main>
+
+  <!-- ========================================================================
+       MODAL 1: เสนอ ผอ. (Stamp 2 - ด้านซ้ายล่างเลยครึ่งกระดาษลงมา)
+       ======================================================================== -->
+  <div class="modal-overlay" id="proposalModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>
+          <i class="fa-solid fa-file-import"></i> บันทึกเสนอ ผอ. (เลขหนังสือ: <span id="proposalModalDocNo">-</span>)
+        </h3>
+        <button type="button" class="modal-close" onclick="closeModal('proposalModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Left: Live Stamp 2 Preview -->
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มเสนอ ผอ. (จะประทับลงด้านซ้ายล่าง)</span>
+          </div>
+          <div class="preview-canvas-container" id="proposalStampPreviewContainer">
+            <!-- Rendered preview of Stamp 2 -->
+          </div>
+        </div>
+
+        <!-- Right: Form for Stamp 2 -->
+        <div>
+          <h4 style="font-size: 15px; font-weight: 600; color: #1e3a5f; margin-bottom: 12px;">
+            เลือกคำขอ / การเสนอ:
+          </h4>
+
+          <div class="checkbox-group-grid">
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="prop_toKnow" onchange="updateProposalStampPreview()">
+              <span>เพื่อทราบ</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="prop_toAct" onchange="updateProposalStampPreview()">
+              <span>เพื่อดำเนินการ</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="prop_toConsider" onchange="updateProposalStampPreview()">
+              <span>เพื่อพิจารณา</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="prop_toComply" onchange="updateProposalStampPreview()">
+              <span>เพื่อถือปฏิบัติ</span>
+            </label>
+
+            <label class="custom-checkbox-card" style="grid-column: span 2;">
+              <input type="checkbox" id="prop_toNotify" onchange="updateProposalStampPreview()">
+              <span>เพื่อแจ้ง...</span>
+            </label>
+          </div>
+
+          <!-- ช่องกรอกข้อความให้มีช่องเดียว และให้อยู่เหนือ . -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="prop_note">
+              <i class="fa-solid fa-pen text-primary"></i> ข้อความ / รายละเอียด (ไม่บังคับกรอก)
+            </label>
+            <input type="text" id="prop_note" class="form-control"
+              placeholder="ข้อความสำหรับเพื่อแจ้ง หรือหมายเหตุเพิ่มเติม..." oninput="updateProposalStampPreview()">
+          </div>
+
+          <!-- วันที่เสนอ (วัน/เดือน/ปี) -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="prop_date">
+              <i class="fa-regular fa-calendar-days text-primary"></i> วันที่เสนอ (วัน/เดือน/ปี พ.ศ.)
+            </label>
+            <input type="text" id="prop_date" class="form-control" placeholder="17/10/2569"
+              oninput="updateProposalStampPreview()">
+          </div>
+
+          <!-- ช่องแนบลายเซ็น -->
+          <div class="signature-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="form-label" style="margin-bottom: 0;">
+                <i class="fa-solid fa-pen-nib text-primary"></i> ลายเซ็นผู้เสนอ
+              </span>
+              <div style="display: flex; gap: 6px;">
+                <input type="file" id="sigFileInputProposal" accept="image/*" style="display:none;"
+                  onchange="handleSigFileUpload(event, 'proposal')">
+                <button type="button" class="btn btn-primary btn-sm"
+                  onclick="document.getElementById('sigFileInputProposal').click()"
+                  style="padding: 4px 10px; font-size: 12px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                  <i class="fa-solid fa-file-image"></i> แนบภาพลายเซ็นต์
+                </button>
+                <button type="button" class="btn btn-outline btn-sm"
+                  onclick="AppState.sigPadProposal.clear(); updateProposalStampPreview();"
+                  style="padding: 4px 10px; font-size: 12px;">
+                  <i class="fa-solid fa-eraser"></i> ล้างลายเซ็น
+                </button>
+              </div>
+            </div>
+            <div class="sig-canvas-wrapper" style="margin-top: 4px;">
+              <canvas id="sigCanvasProposal"></canvas>
+            </div>
+            <!-- ตัวปรับเพิ่ม/ลด ขนาดลายเซ็น -->
+            <div
+              style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; padding: 4px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <span style="font-size: 11.5px; color: #475569; font-weight: 500;">
+                <i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ปรับขนาดลายเซ็น:
+              </span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('proposal', -0.1)"
+                  style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="ลดขนาด">-</button>
+                <input type="range" id="sigScaleProposal" min="0.5" max="1.8" step="0.05" value="1.0"
+                  oninput="onSigScaleChange('proposal', this.value)" style="width: 100px; cursor: pointer;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('proposal', 0.1)"
+                  style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="เพิ่มขนาด">+</button>
+                <span id="sigScaleProposalText"
+                  style="font-size: 11.5px; font-weight: 600; color: #2563eb; width: 38px; text-align: right;">100%</span>
+              </div>
+            </div>
+            <p style="font-size: 11px; color: #64748b; margin-top: 4px; margin-bottom: 0;">
+              * วาดลายเซ็นสดลงในกรอบ หรือกดปุ่ม <strong>"แนบภาพลายเซ็นต์"</strong> เพื่อเลือกไฟล์ภาพจากคอมพิวเตอร์
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('proposalModal')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" id="btnSaveProposal" onclick="handleSaveProposal()">
+          <i class="fa-solid fa-stamp"></i> บันทึกและประทับตราเสนอ ผอ.
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 2: ความคิดเห็น ผอ. (Stamp 3 - ด้านขวาล่างเลยครึ่งกระดาษลงมา)
+       ======================================================================== -->
+  <div class="modal-overlay" id="directorModal">
+    <div class="modal-dialog">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1d4ed8, #2563eb);">
+        <h3>
+          <i class="fa-solid fa-stamp"></i> ความคิดเห็นและคำสั่งการ ผอ. (เลขหนังสือ: <span
+            id="directorModalDocNo">-</span>)
+        </h3>
+        <button type="button" class="modal-close" onclick="closeModal('directorModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Left: Live Stamp 3 Preview -->
+        <div class="preview-pane">
+          <div class="preview-pane-header">
+            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มความเห็น ผอ.
+              (จะประทับลงด้านขวาล่าง)</span>
+          </div>
+          <div class="preview-canvas-container" id="directorStampPreviewContainer">
+            <!-- Rendered preview of Stamp 3 -->
+          </div>
+        </div>
+
+        <!-- Right: Form for Stamp 3 -->
+        <div>
+          <h4 style="font-size: 15px; font-weight: 600; color: #1e3a5f; margin-bottom: 12px;">
+            คำสั่งการ / ความเห็นผู้บริหาร:
+          </h4>
+
+          <div class="checkbox-group-grid">
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="dir_ack" onchange="updateDirectorStampPreview()">
+              <span>ทราบ</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="dir_follow" onchange="updateDirectorStampPreview()">
+              <span>ดำเนินการตาม</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="dir_agree" onchange="updateDirectorStampPreview()">
+              <span>เห็นชอบ</span>
+            </label>
+
+            <label class="custom-checkbox-card">
+              <input type="checkbox" id="dir_approve" onchange="updateDirectorStampPreview()">
+              <span>อนุมัติ</span>
+            </label>
+          </div>
+
+          <!-- ช่องกรอกความคิดเห็น ไม่บังคับกรอก -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="dir_comment">
+              ความคิดเห็น / คำสั่งการเพิ่มเติม (ไม่บังคับกรอก)
+            </label>
+            <input type="text" id="dir_comment" class="form-control" placeholder="ข้อความสั่งการ..."
+              oninput="updateDirectorStampPreview()">
+          </div>
+
+          <!-- ช่องผู้รับผิดชอบ (Dropdown จากชีสครู + ครูทุกคน) -->
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label class="form-label" for="directorAssignee">
+              <i class="fa-solid fa-user-check text-primary"></i> ผู้รับผิดชอบ <span class="required">*</span>
+            </label>
+            <select id="directorAssignee" class="form-control" onchange="updateDirectorStampPreview()" required>
+              <option value="">-- กำลังโหลดรายชื่อครู... --</option>
+            </select>
+          </div>
+
+          <div class="form-grid-2" style="margin-bottom: 12px;">
+            <div class="form-group">
+              <label class="form-label" for="dir_name">ชื่อผู้บริหาร (ผอ.)</label>
+              <input type="text" id="dir_name" class="form-control" value="นายกฤษฎา ผลพล"
+                oninput="updateDirectorStampPreview()">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="dir_date">วันที่สั่งการ</label>
+              <input type="text" id="dir_date" class="form-control" oninput="updateDirectorStampPreview()">
+            </div>
+          </div>
+
+          <!-- ช่องแนบลายเซ็น ผอ. -->
+          <div class="signature-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <span class="form-label" style="margin-bottom: 0;">
+                <i class="fa-solid fa-pen-nib text-primary"></i> ลายเซ็นผู้อำนวยการ
+              </span>
+              <div style="display: flex; gap: 6px;">
+                <input type="file" id="sigFileInputDirector" accept="image/*" style="display:none;"
+                  onchange="handleSigFileUpload(event, 'director')">
+                <button type="button" class="btn btn-primary btn-sm"
+                  onclick="document.getElementById('sigFileInputDirector').click()"
+                  style="padding: 4px 10px; font-size: 12px; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                  <i class="fa-solid fa-file-image"></i> แนบภาพลายเซ็นต์
+                </button>
+                <button type="button" class="btn btn-outline btn-sm"
+                  onclick="AppState.sigPadDirector.clear(); updateDirectorStampPreview();"
+                  style="padding: 4px 10px; font-size: 12px;">
+                  <i class="fa-solid fa-eraser"></i> ล้างลายเซ็น
+                </button>
+              </div>
+            </div>
+            <div class="sig-canvas-wrapper" style="margin-top: 4px;">
+              <canvas id="sigCanvasDirector"></canvas>
+            </div>
+            <!-- ตัวปรับเพิ่ม/ลด ขนาดลายเซ็น ผอ. -->
+            <div
+              style="display: flex; align-items: center; justify-content: space-between; margin-top: 6px; padding: 4px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+              <span style="font-size: 11.5px; color: #475569; font-weight: 500;">
+                <i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ปรับขนาดลายเซ็น:
+              </span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('director', -0.1)"
+                  style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="ลดขนาด">-</button>
+                <input type="range" id="sigScaleDirector" min="0.5" max="1.8" step="0.05" value="1.0"
+                  oninput="onSigScaleChange('director', this.value)" style="width: 100px; cursor: pointer;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('director', 0.1)"
+                  style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="เพิ่มขนาด">+</button>
+                <span id="sigScaleDirectorText"
+                  style="font-size: 11.5px; font-weight: 600; color: #2563eb; width: 38px; text-align: right;">100%</span>
+              </div>
+            </div>
+            <p style="font-size: 11px; color: #64748b; margin-top: 4px; margin-bottom: 0;">
+              * วาดลายเซ็นสดลงในกรอบ หรือกดปุ่ม <strong>"แนบภาพลายเซ็นต์"</strong> เพื่อเลือกไฟล์ภาพจากคอมพิวเตอร์
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('directorModal')">ยกเลิก</button>
+        <button type="button" class="btn btn-success" id="btnSaveDirector" onclick="handleSaveDirectorComment()">
+          <i class="fa-solid fa-check-double"></i> บันทึกความคิดเห็น ผอ. และมอบหมายงาน
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 3: ดูเอกสารฉบับเต็มและดาวน์โหลด (Document Viewer)
+       ======================================================================== -->
+  <div class="modal-overlay" id="documentViewModal">
+    <div class="modal-dialog" style="max-width: 900px;">
+      <div class="modal-header">
+        <h3>
+          <i class="fa-solid fa-file-contract"></i> เอกสารรับเลขที่: <span id="viewModalDocNo">-</span>
+        </h3>
+        <button type="button" class="modal-close" onclick="closeModal('documentViewModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="grid-template-columns: 1fr; padding: 18px;">
+        <p id="viewModalDocTitle" style="font-weight: 500; color: #1e3a5f; margin-bottom: 10px;"></p>
+        <div id="documentViewerContainer">
+          <!-- Stamped Document Preview iframe or img -->
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('documentViewModal')">ปิดหน้าต่าง</button>
+        <button type="button" class="btn btn-primary" id="btnDownloadDoc">
+          <i class="fa-solid fa-download"></i> ดาวน์โหลดเอกสารประทับตรา
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 4: แก้ไขข้อมูลหนังสือรับ
+       ======================================================================== -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal-dialog" style="max-width: 580px;">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูลหนังสือรับ</h3>
+        <button type="button" class="modal-close" onclick="closeModal('editModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="grid-template-columns: 1fr; gap: 16px;">
+        <input type="hidden" id="editDocId">
+        <div class="form-group">
+          <label class="form-label" for="editBookNo">เลขหนังสือรับ</label>
+          <input type="text" id="editBookNo" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editReceiveDate">วันที่รับ</label>
+          <input type="text" id="editReceiveDate" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editReceiveTime">เวลา</label>
+          <input type="text" id="editReceiveTime" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editTitle">เรื่อง</label>
+          <input type="text" id="editTitle" class="form-control">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editModal')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="handleSaveEdit()">บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 5: แก้ไขข้อมูลหนังสือส่ง
+       ======================================================================== -->
+  <div class="modal-overlay" id="editOutboundModal">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1d4ed8, #2563eb);">
+        <h3><i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูลหนังสือส่ง</h3>
+        <button type="button" class="modal-close" onclick="closeModal('editOutboundModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="grid-template-columns: 1fr; gap: 14px;">
+        <input type="hidden" id="editOutboundId">
+        <div class="form-group">
+          <label class="form-label" for="editOutboundNo">เลขหนังสือส่ง</label>
+          <input type="text" id="editOutboundNo" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOutboundDate">ลงวันที่ (วัน/เดือน/ปี พ.ศ.)</label>
+          <input type="text" id="editOutboundDate" class="form-control" placeholder="17/10/2569" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOutboundFrom">จาก (ผู้ส่ง)</label>
+          <input type="text" id="editOutboundFrom" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOutboundTo">ถึง (ผู้รับ)</label>
+          <input type="text" id="editOutboundTo" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOutboundTitle">เรื่อง</label>
+          <input type="text" id="editOutboundTitle" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">เปลี่ยนไฟล์เอกสารแนบ (ไม่บังคับ)</label>
+          <input type="file" id="editOutboundFileInput" class="form-control" accept=".pdf,image/*">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editOutboundModal')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" onclick="handleSaveEditOutbound()">บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL 6: แก้ไขข้อมูลหนังสือคำสั่ง
+       ======================================================================== -->
+  <div class="modal-overlay" id="editOrderModal">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #059669, #047857);">
+        <h3><i class="fa-solid fa-pen-to-square"></i> แก้ไขข้อมูลหนังสือคำสั่ง</h3>
+        <button type="button" class="modal-close" onclick="closeModal('editOrderModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="grid-template-columns: 1fr; gap: 14px;">
+        <input type="hidden" id="editOrderId">
+        <div class="form-group">
+          <label class="form-label" for="editOrderNo">ที่คำสั่ง</label>
+          <input type="text" id="editOrderNo" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOrderTitle">เรื่อง</label>
+          <input type="text" id="editOrderTitle" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOrderDate">วัน/เดือน/ปี ที่ลงคำสั่ง</label>
+          <input type="text" id="editOrderDate" class="form-control" placeholder="17/10/2569" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editOrderAssignedDuty">หน้าที่ที่ได้รับมอบหมาย</label>
+          <input type="text" id="editOrderAssignedDuty" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">เปลี่ยนไฟล์เอกสารคำสั่ง (ไม่บังคับ)</label>
+          <input type="file" id="editOrderFileInput" class="form-control" accept=".pdf,image/*">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editOrderModal')">ยกเลิก</button>
+        <button type="button" class="btn btn-primary" style="background: linear-gradient(135deg, #059669, #047857);" onclick="handleSaveEditOrder()">บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: ตั้งค่าเชื่อมต่อ Google Sheets (GAS Web App)
+       ======================================================================== -->
+  <div class="modal-overlay" id="gasModal">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #0284c7, #0369a1);">
+        <h3>
+          <i class="fa-solid fa-cloud-arrow-up"></i> ตั้งค่าเชื่อมต่อ Google Sheets & Drive
+        </h3>
+        <button type="button" class="modal-close" onclick="closeModal('gasModal')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #0369a1; line-height: 1.6;">
+          <strong><i class="fa-solid fa-database"></i> ฐานข้อมูลเป้าหมาย:</strong><br>
+          • <strong>Google Sheet:</strong> <code>1iyrtsfjL3WEl2BQOpbTWLEhaacA95dfScXYj_1QBqK8</code><br>
+          • <strong>Google Drive โฟลเดอร์:</strong> <code>136nyrJjpEK2vYwaRjGgUwvbxtg5uoLEj</code>
+        </div>
+
+        <div class="form-group" style="margin-top: 4px;">
+          <label class="form-label" for="gasModalUrlInput" style="font-weight: 600;">
+            <i class="fa-solid fa-link text-primary"></i> Google Apps Script Web App URL
+          </label>
+          <input type="url" id="gasModalUrlInput" class="form-control" value="https://script.google.com/macros/s/AKfycbxwguhD5XMUi-eQzQjrbT8dNDvhdRx9w9fDzvGGbGIU8-CrEZYYi4_n-Lw5OuA7y93R/exec" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+          <p style="font-size: 12px; color: #64748b; margin-top: 6px; margin-bottom: 0; line-height: 1.4;">
+            * นำ URL ที่ได้จากการกด <strong>Deploy (การทำให้ใช้งานได้) ➔ New deployment (รายการใหม่) ➔ Web app ➔ Anyone (ทุกคน)</strong> จากหน้า Apps Script มาวางที่นี่
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('gasModal')">ปิด</button>
+        <button type="button" class="btn btn-primary" onclick="saveGasSettingsFromModal()">
+          <i class="fa-solid fa-floppy-disk"></i> บันทึกและเชื่อมต่อ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer-bar">
+    <p>ระบบสารบรรณหนังสือรับอิเล็กทรอนิกส์ &copy; 2569 โรงเรียนบ้านสันดาบ สพป.สมุทรสาคร | พัฒนาด้วยเทคโนโลยีเว็บมาตรฐาน
+    </p>
+  </footer>
+
+  <!-- Scripts in dependency order -->
+  <script src="stampAssets.js"></script>
+  <script src="stampEngine.js"></script>
+  <script src="app.js"></script>
+</body>
+
+</html>
