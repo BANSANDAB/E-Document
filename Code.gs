@@ -260,7 +260,8 @@ function getInboundSheet() {
  */
 function getInboundRecords() {
   const sheet = getInboundSheet();
-  const rows = sheet.getDataRange().getValues();
+  // ใช้ getDisplayValues() เพื่อให้อ่านค่า วันที่, ตัวเลข, ข้อความ ตรงตามที่แสดงในชีต ไม่แปลงเป็น Date ISO string
+  const rows = sheet.getDataRange().getDisplayValues();
   if (rows.length <= 1) return [];
 
   const records = [];
@@ -303,25 +304,29 @@ function saveInboundRecord(record) {
   const cleanBookNo = String(record.bookNo || '').replace(/[\/\\]/g, '-');
 
   // Upload files to Google Drive folder (supports multiple files)
-  if (record.files && Array.isArray(record.files) && record.files.length > 0) {
-    const urls = [];
-    for (let i = 0; i < record.files.length; i++) {
-      const f = record.files[i];
-      const dataUrl = f.stampedDataUrl || f.originalDataUrl;
-      if (dataUrl) {
-        const prefix = (i === 0) ? ('หนังสือรับ_' + cleanBookNo) : ('หนังสือรับ_' + cleanBookNo + '_แนบ' + i);
-        const fname = prefix + '_' + (f.name || ('ไฟล์' + (i + 1)));
-        const url = uploadBase64FileToDrive(dataUrl, fname, f.type || 'application/pdf');
-        if (url) urls.push(url);
+  try {
+    if (record.files && Array.isArray(record.files) && record.files.length > 0) {
+      const urls = [];
+      for (let i = 0; i < record.files.length; i++) {
+        const f = record.files[i];
+        const dataUrl = f.stampedDataUrl || f.originalDataUrl;
+        if (dataUrl) {
+          const prefix = (i === 0) ? ('หนังสือรับ_' + cleanBookNo) : ('หนังสือรับ_' + cleanBookNo + '_แนบ' + i);
+          const fname = prefix + '_' + (f.name || ('ไฟล์' + (i + 1)));
+          const url = uploadBase64FileToDrive(dataUrl, fname, f.type || 'application/pdf');
+          if (url) urls.push(url);
+        }
       }
+      fileUrl = urls.join('\n');
+    } else if (record.stampedDataUrl) {
+      fileUrl = uploadBase64FileToDrive(
+        record.stampedDataUrl,
+        'หนังสือรับ_' + cleanBookNo + '.pdf',
+        record.fileType || 'application/pdf'
+      );
     }
-    fileUrl = urls.join('\n');
-  } else if (record.stampedDataUrl) {
-    fileUrl = uploadBase64FileToDrive(
-      record.stampedDataUrl,
-      'หนังสือรับ_' + cleanBookNo + '.pdf',
-      record.fileType || 'application/pdf'
-    );
+  } catch (errUpload) {
+    Logger.log('Drive upload failed in saveInboundRecord: ' + errUpload);
   }
 
   sheet.appendRow([

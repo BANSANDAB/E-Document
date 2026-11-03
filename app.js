@@ -73,6 +73,38 @@ const ThaiDateUtil = {
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return `${hours}:${minutes} น.`;
+  },
+
+  formatDisplayDate(val) {
+    if (!val) return '-';
+    const str = String(val).trim();
+    if (!str) return '-';
+
+    // Case 1: ISO string e.g. "2569-03-10T17:00:00.000Z" or "2026-03-10T..."
+    if (str.includes('T') && str.endsWith('Z')) {
+      try {
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          const day = String(d.getDate()).padStart(2, '0');
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          let yr = d.getFullYear();
+          if (yr < 2400) yr += 543;
+          return `${day}/${month}/${yr}`;
+        }
+      } catch (e) {}
+    }
+
+    // Case 2: YYYY-MM-DD
+    const ymdMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (ymdMatch) {
+      let yr = parseInt(ymdMatch[1], 10);
+      if (yr < 2400) yr += 543;
+      const mo = ymdMatch[2].padStart(2, '0');
+      const da = ymdMatch[3].padStart(2, '0');
+      return `${da}/${mo}/${yr}`;
+    }
+
+    return str;
   }
 };
 
@@ -406,8 +438,9 @@ function setEditReceiveDate(dateStr) {
   const dateInput = document.getElementById('editReceiveDate');
 
   let day = '01', month = '01', year = String(ThaiDateUtil.getBuddhistYear());
-  if (dateStr && typeof dateStr === 'string') {
-    const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
+  if (dateStr) {
+    const formatted = ThaiDateUtil.formatDisplayDate(dateStr);
+    const parts = formatted.includes('/') ? formatted.split('/') : formatted.split('-');
     if (parts.length >= 3) {
       day = String(parts[0]).padStart(2, '0');
       month = String(parts[1]).padStart(2, '0');
@@ -629,41 +662,58 @@ async function generateSampleDoc() {
   try {
     const pdfBytes = await StampEngine.createSampleDocumentPdf();
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-    const reader = new FileReader();
-    reader.onload = () => {
-      const sampleFile = {
-        name: `หนังสือราชการ_ตัวอย่าง_${Date.now().toString().slice(-4)}.pdf`,
-        type: 'application/pdf',
-        size: pdfBytes.length,
-        dataUrl: reader.result,
-        bytes: pdfBytes
-      };
-      if (!AppState.selectedFiles) AppState.selectedFiles = [];
-      AppState.selectedFiles.push(sampleFile);
-      AppState.selectedFile = AppState.selectedFiles[0];
-      updateFilePreviewUI();
-      showToast('สร้างตัวอย่างหนังสือราชการสำเร็จ พร้อมลงรับ!', 'success');
+    const dataUrl = await blobToDataUrl(blob);
+    const sampleFile = {
+      name: `หนังสือราชการ_ตัวอย่าง_${Date.now().toString().slice(-4)}.pdf`,
+      type: 'application/pdf',
+      size: pdfBytes.length,
+      dataUrl: dataUrl,
+      bytes: pdfBytes
     };
-    reader.readAsDataURL(blob);
+    if (!AppState.selectedFiles) AppState.selectedFiles = [];
+    AppState.selectedFiles.push(sampleFile);
+    AppState.selectedFile = AppState.selectedFiles[0];
+    updateFilePreviewUI();
+    showToast('สร้างตัวอย่างหนังสือราชการสำเร็จ พร้อมลงรับ!', 'success');
+    return sampleFile;
   } catch (err) {
-    console.error(err);
+    console.error('generateSampleDoc error:', err);
     showToast('เกิดข้อผิดพลาดในการสร้างเอกสารตัวอย่าง', 'danger');
+    return null;
   }
 }
 
 /* ==========================================================================
    Latest Book Number Placeholder & Calculation
    ========================================================================== */
+function getLatestBookNumberRecord() {
+  if (!AppState.records || AppState.records.length === 0) return null;
+  let maxNum = -1;
+  let bestRec = null;
+  for (const r of AppState.records) {
+    if (!r.bookNo) continue;
+    const m = String(r.bookNo).match(/^(\d+)/);
+    if (m) {
+      const num = parseInt(m[1], 10);
+      if (num > maxNum) {
+        maxNum = num;
+        bestRec = r;
+      }
+    }
+  }
+  return bestRec || AppState.records[0];
+}
+
 function updateLatestBookNoPlaceholder() {
   const bookNoInput = document.getElementById('bookNo');
   if (!bookNoInput) return;
 
   let latestNo = '';
   const currentBEYear = ThaiDateUtil.getBuddhistYear();
+  const latestRec = getLatestBookNumberRecord();
 
-  if (AppState.records && AppState.records.length > 0) {
-    // Get the first record (most recent)
-    latestNo = AppState.records[0].bookNo;
+  if (latestRec && latestRec.bookNo) {
+    latestNo = String(latestRec.bookNo);
   } else {
     latestNo = `0001/${currentBEYear}`;
   }
@@ -682,17 +732,24 @@ function useNextSequentialBookNo() {
 
   const currentBEYear = ThaiDateUtil.getBuddhistYear();
   let nextSeq = 1;
+  let hasSlash = false;
 
-  if (AppState.records && AppState.records.length > 0) {
-    const latest = AppState.records[0].bookNo;
-    const match = latest.match(/^(\d+)/);
+  const latestRec = getLatestBookNumberRecord();
+  if (latestRec && latestRec.bookNo) {
+    const raw = String(latestRec.bookNo).trim();
+    hasSlash = raw.includes('/');
+    const match = raw.match(/^(\d+)/);
     if (match) {
       nextSeq = parseInt(match[1], 10) + 1;
     }
   }
 
-  const padded = String(nextSeq).padStart(4, '0');
-  bookNoInput.value = `${padded}/${currentBEYear}`;
+  if (hasSlash) {
+    const padded = String(nextSeq).padStart(4, '0');
+    bookNoInput.value = `${padded}/${currentBEYear}`;
+  } else {
+    bookNoInput.value = String(nextSeq);
+  }
   updateInboundStampPreview();
 }
 
@@ -764,7 +821,11 @@ async function saveInboundDocument(e) {
   }
 
   try {
-    const primaryFile = AppState.selectedFiles[0];
+    const primaryFile = AppState.selectedFiles && AppState.selectedFiles[0];
+    if (!primaryFile) {
+      showToast('ไม่พบไฟล์เอกสารสำหรับประทับตรา กรุณาลองใหม่อีกครั้ง', 'warning');
+      return;
+    }
 
     // 1. Render Stamp 1 Canvas
     const stamp1 = await StampEngine.renderStamp1Canvas({
@@ -868,7 +929,31 @@ async function saveInboundDocument(e) {
 /* ==========================================================================
    Table Rendering
    ========================================================================== */
+function sortRecordsNewestFirst() {
+  if (!AppState.records || !Array.isArray(AppState.records)) return;
+  AppState.records.sort((a, b) => {
+    // 1. Compare numeric bookNo
+    const aMatch = String(a.bookNo || '').match(/^(\d+)/);
+    const bMatch = String(b.bookNo || '').match(/^(\d+)/);
+    if (aMatch && bMatch) {
+      const aNum = parseInt(aMatch[1], 10);
+      const bNum = parseInt(bMatch[1], 10);
+      if (aNum !== bNum) return bNum - aNum; // Newest / highest number first
+    }
+    // 2. Compare numeric orderNo
+    const aOrder = parseInt(a.orderNo, 10) || 0;
+    const bOrder = parseInt(b.orderNo, 10) || 0;
+    if (aOrder !== bOrder) return bOrder - aOrder;
+
+    // 3. Compare updatedAt or id
+    const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return bTime - aTime;
+  });
+}
+
 function reindexRecords() {
+  sortRecordsNewestFirst();
   AppState.records.forEach((r, idx) => {
     r.orderNo = idx + 1;
   });
@@ -910,7 +995,7 @@ function renderInboundTable() {
       <td style="text-align: center; font-weight: 600;">${i + 1}</td>
       <td style="font-weight: 600; color: #2563eb;">${escapeHtml(r.bookNo)}</td>
       <td>
-        <div>${escapeHtml(r.receiveDate)}</div>
+        <div>${escapeHtml(ThaiDateUtil.formatDisplayDate(r.receiveDate))}</div>
         <div style="font-size: 11.5px; color: #64748b;">${escapeHtml(r.receiveTime)}</div>
       </td>
       <td>
@@ -986,7 +1071,7 @@ function renderPendingTable() {
       <tr>
         <td style="text-align: center; font-weight: 600;">${i + 1}</td>
         <td style="font-weight: 600; color: #2563eb;">${escapeHtml(r.bookNo)}</td>
-        <td>${escapeHtml(r.receiveDate)}</td>
+        <td>${escapeHtml(ThaiDateUtil.formatDisplayDate(r.receiveDate))}</td>
         <td>
           <div style="font-weight: 500;">${escapeHtml(r.title)}</div>
         </td>
@@ -1074,7 +1159,7 @@ function renderSearchTable(filteredRecords = null) {
     <tr>
       <td style="text-align: center;">${i + 1}</td>
       <td style="font-weight: 600; color: #1e40af;">${escapeHtml(r.bookNo)}</td>
-      <td>${escapeHtml(r.receiveDate)}</td>
+      <td>${escapeHtml(ThaiDateUtil.formatDisplayDate(r.receiveDate))}</td>
       <td>${escapeHtml(r.title)}</td>
       <td>
         ${r.status === 'เสร็จสิ้น' ? `
@@ -2120,6 +2205,7 @@ async function loadStoredRecords() {
     AppState.records = [];
   }
 
+  reindexRecords();
   renderAllTables();
   updateKpiStats();
   updateLatestBookNoPlaceholder();
@@ -2248,11 +2334,27 @@ async function syncToGasIfAvailable(action, payload) {
   }
 
   try {
+    let cleanPayload = payload;
+    if (action === 'saveRecord' && payload) {
+      cleanPayload = { ...payload };
+      // Strip duplicated base64 in root fields if files array is present
+      if (Array.isArray(cleanPayload.files) && cleanPayload.files.length > 0) {
+        delete cleanPayload.originalDataUrl;
+        delete cleanPayload.stampedDataUrl;
+        cleanPayload.files = cleanPayload.files.map(f => ({
+          name: f.name,
+          type: f.type,
+          size: f.size,
+          stampedDataUrl: f.stampedDataUrl || f.originalDataUrl
+        }));
+      }
+    }
+
     await fetch(AppState.gasWebAppUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, data: payload })
+      body: JSON.stringify({ action, data: cleanPayload })
     });
     console.log('Synced to GAS Web App:', action);
   } catch (err) {
