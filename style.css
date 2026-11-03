@@ -1240,6 +1240,160 @@ body {
   object-fit: contain;
 }
 
+/* Stamp Position Control Box */
+.stamp-position-box {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.stamp-position-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.stamp-position-grid {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Mini A4 Document Locator */
+.stamp-locator-mockup {
+  width: 86px;
+  height: 122px;
+  background: #ffffff;
+  border: 1.5px solid #94a3b8;
+  border-radius: 4px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+  background-image: linear-gradient(to bottom, #f8fafc, #ffffff);
+}
+
+.stamp-locator-header-bar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  background: #2563eb;
+  border-radius: 1px;
+}
+
+.stamp-locator-midline {
+  position: absolute;
+  top: 50%;
+  left: 5px;
+  right: 5px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.stamp-locator-badge {
+  position: absolute;
+  min-width: 36px;
+  height: 18px;
+  padding: 0 3px;
+  background: rgba(37, 99, 235, 0.16);
+  border: 1.5px solid #2563eb;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 700;
+  color: #1d4ed8;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: left 0.12s ease-out, top 0.12s ease-out;
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.25);
+}
+
+/* Nudge Controls */
+.nudge-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.nudge-dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 24px);
+  grid-template-rows: repeat(2, 22px);
+  gap: 2px;
+  justify-content: center;
+}
+
+.nudge-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  user-select: none;
+}
+
+.nudge-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.nudge-btn:active {
+  transform: scale(0.92);
+}
+
+/* Slider Controls */
+.pos-slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.pos-slider-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: #475569;
+}
+
+.pos-slider-item input[type="range"] {
+  flex: 1;
+  height: 4px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+.pos-slider-val {
+  min-width: 40px;
+  text-align: right;
+  font-weight: 600;
+  color: #2563eb;
+  font-size: 10px;
+}
+
 /* Toast System */
 .toast-container {
   position: fixed;
@@ -1282,4 +1436,183 @@ body {
   font-size: 12px;
   border-top: 1px solid #e2e8f0;
   margin-top: 24px;
+}
+
+/* ==========================================================================
+   Thai Buddhist Era Calendar Picker (ปฏิทินไทย พ.ศ. ช่องเดียว)
+   ========================================================================== */
+.thai-calendar-popup {
+  position: absolute;
+  z-index: 10000;
+  width: 295px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1);
+  padding: 12px;
+  font-family: var(--font-main);
+  animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.thai-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 4px;
+}
+
+.thai-calendar-nav-btn {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #334155;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.thai-calendar-nav-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.thai-calendar-title-selects {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+}
+
+.thai-calendar-select {
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.thai-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.thai-calendar-weekday.weekend {
+  color: #ef4444;
+}
+
+.thai-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+
+.thai-calendar-day {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1e293b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.thai-calendar-day:hover:not(.empty) {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.thai-calendar-day.today {
+  border: 1.5px solid #3b82f6;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.thai-calendar-day.selected {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.thai-calendar-day.empty {
+  cursor: default;
+}
+
+.thai-calendar-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.thai-calendar-footer-btn {
+  background: none;
+  border: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.thai-calendar-footer-btn.today-btn {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.thai-calendar-footer-btn.today-btn:hover {
+  background: #dbeafe;
+}
+
+.thai-calendar-footer-btn.close-btn {
+  color: #64748b;
+}
+
+.thai-calendar-footer-btn.close-btn:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+
+.calendar-picker-btn:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
 }

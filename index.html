@@ -47,6 +47,9 @@
       </div>
 
       <div class="header-status-bar">
+        <button type="button" class="btn btn-sm btn-outline" onclick="syncInboundRecordsFromGas(true)" title="ดึงข้อมูลล่าสุดจาก Google Sheet ทันที" style="background: rgba(255,255,255,0.18); color: #ffffff; border: 1px solid rgba(255,255,255,0.4); border-radius: 20px; font-size: 12px; padding: 5px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrows-rotate"></i> <span>ซิงค์ฐานข้อมูล</span>
+        </button>
         <button type="button" class="gas-badge-btn connected" id="gasStatusBtn" onclick="openGasModal()" title="เชื่อมต่อ Google Sheet แล้ว คลิกเพื่อดูรายละเอียดหรือแก้ไข">
           <i class="fa-solid fa-cloud-check"></i> <span id="gasStatusText">เชื่อมต่อ Google Sheet แล้ว</span>
         </button>
@@ -228,10 +231,10 @@
               </div>
             </div>
 
-            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ. เลือกได้ ไม่ต้องกรอกเอง) -->
+            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ. ช่องเดียว พร้อมปุ่มเลือกปฏิทิน) -->
             <div class="form-group">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <label class="form-label" style="margin-bottom: 0;">
+                <label class="form-label" for="receiveDate" style="margin-bottom: 0;">
                   <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span class="required">*</span>
                 </label>
                 <button type="button" class="btn-edit-sm" onclick="setReceiveDateToToday()" title="ตั้งเป็นวันปัจจุบัน"
@@ -239,21 +242,21 @@
                   <i class="fa-solid fa-calendar-day"></i> วันนี้
                 </button>
               </div>
-              <div style="display: grid; grid-template-columns: 78px 1.3fr 90px; gap: 5px;">
-                <select id="receiveDay" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกวัน"
-                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
-                  <!-- วันที่ 01-31 -->
-                </select>
-                <select id="receiveMonth" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกเดือน"
-                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
-                  <!-- เดือน มกราคม - ธันวาคม -->
-                </select>
-                <select id="receiveYear" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกปี พ.ศ."
-                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
-                  <!-- ปี พ.ศ. 2565 - 2575 -->
-                </select>
+              <div class="thai-datepicker-container" style="position: relative;">
+                <input type="text" id="receiveDate" class="form-control"
+                  placeholder="วว/ดด/ปปปป (พ.ศ.)"
+                  autocomplete="off"
+                  onclick="ThaiDatePicker.toggle('receiveDate')"
+                  oninput="updateInboundStampPreview()"
+                  style="padding-right: 42px; font-weight: 500; font-size: 13.5px; cursor: pointer; background: #ffffff;"
+                  required>
+                <button type="button" class="calendar-picker-btn" id="btnOpenCalendarReceive"
+                  onclick="ThaiDatePicker.toggle('receiveDate')"
+                  title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
+                  style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
+                  <i class="fa-regular fa-calendar-days" style="font-size: 14px;"></i>
+                </button>
               </div>
-              <input type="hidden" id="receiveDate" required>
             </div>
 
             <!-- เวลา (แสดงอัตโนมัติ) -->
@@ -308,6 +311,30 @@
               style="display: flex; justify-content: center; align-items: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 8px; min-height: 95px;">
               <!-- Rendered via updateInboundStampPreview() -->
             </div>
+
+            <!-- ตัวเลือกปรับตำแหน่งตราปั๊มรับเข้า (Stamp 1) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 6px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11.5px;">
+              <span style="color: #475569; font-weight: 500;">
+                <i class="fa-solid fa-crosshairs text-primary"></i> ตำแหน่งตราปั้มรับเข้า:
+              </span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <select id="inboundStampPreset" class="form-control" style="font-size: 11px; padding: 3px 6px; height: auto;" onchange="onStampPositionChange('inbound')">
+                  <option value="top-right" selected>ขวาบน (ค่าเริ่มต้น)</option>
+                  <option value="top-center">กึ่งกลางบน</option>
+                  <option value="top-left">ซ้ายบน</option>
+                  <option value="bottom-right">ขวาล่าง</option>
+                </select>
+                <div style="display: flex; gap: 3px;">
+                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', -10, 0)" title="เลื่อนซ้าย">◀</button>
+                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 10, 0)" title="เลื่อนขวา">▶</button>
+                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 0, 10)" title="เลื่อนขึ้น">▲</button>
+                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 0, -10)" title="เลื่อนลง">▼</button>
+                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="resetStampPosition('inbound')" title="รีเซ็ต">↺</button>
+                </div>
+                <input type="hidden" id="inboundStampOffsetX" value="0">
+                <input type="hidden" id="inboundStampOffsetY" value="0">
+              </div>
+            </div>
           </div>
 
           <!-- ปุ่มบันทึกข้อมูล -->
@@ -328,9 +355,13 @@
             </div>
             <div>
               <h2>รายการหนังสือรับ</h2>
-              <p style="font-size: 12px; color: #64748b;">รายการหนังสือราชการที่ลงรับในระบบแล้ว (แสดง 5 รายการล่าสุด)
-              </p>
+              <p style="font-size: 12px; color: #64748b;">รายการหนังสือราชการที่ลงรับในระบบ (ข้อมูลอ้างอิงตรงตามฐานข้อมูล Google Sheet)</p>
             </div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="syncInboundRecordsFromGas(true)" title="ดึงข้อมูลล่าสุดจากฐานข้อมูล Google Sheet ทันที">
+              <i class="fa-solid fa-arrows-rotate text-primary"></i> ซิงค์ฐานข้อมูล
+            </button>
           </div>
         </div>
 
@@ -379,6 +410,11 @@
               <p style="font-size: 13px; color: #64748b;">ขั้นตอนการเสนอ ผอ. (ตราปั้มด้านซ้ายล่าง) และความคิดเห็น ผอ.
                 พร้อมมอบหมายผู้รับผิดชอบ (ตราปั้มด้านขวาล่าง)</p>
             </div>
+          </div>
+          <div>
+            <button type="button" class="btn btn-outline btn-sm" onclick="syncInboundRecordsFromGas(true)" title="ดึงข้อมูลล่าสุดจากฐานข้อมูล Google Sheet ทันที">
+              <i class="fa-solid fa-arrows-rotate text-primary"></i> ซิงค์ฐานข้อมูล
+            </button>
           </div>
         </div>
 
@@ -815,13 +851,74 @@
       </div>
 
       <div class="modal-body">
-        <!-- Left: Live Stamp 2 Preview -->
+        <!-- Left: Live Stamp 2 Preview & Position Control -->
         <div class="preview-pane">
           <div class="preview-pane-header">
-            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มเสนอ ผอ. (จะประทับลงด้านซ้ายล่าง)</span>
+            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มเสนอ ผอ.</span>
+            <span class="badge badge-info" style="font-size: 11px;"><i class="fa-solid fa-arrows-up-down-left-right"></i> ปรับตำแหน่งได้</span>
           </div>
           <div class="preview-canvas-container" id="proposalStampPreviewContainer">
             <!-- Rendered preview of Stamp 2 -->
+          </div>
+
+          <!-- แผงปรับตำแหน่งตราปั๊มเสนอ ผอ. บนหน้าเอกสาร -->
+          <div class="stamp-position-box">
+            <div class="stamp-position-box-header">
+              <span><i class="fa-solid fa-crosshairs text-primary"></i> ปรับตำแหน่งบนหน้าเอกสาร</span>
+              <button type="button" class="btn btn-outline btn-sm" onclick="resetStampPosition('proposal')" style="padding: 1px 8px; font-size: 11px;">
+                <i class="fa-solid fa-rotate-left"></i> รีเซ็ต
+              </button>
+            </div>
+            
+            <div class="stamp-position-grid">
+              <!-- Mini A4 Mockup Locator -->
+              <div class="stamp-locator-mockup" id="propLocatorMockup" onclick="handleLocatorMockupClick(event, 'proposal')" title="คลิกบนหน้ากระดาษจำลองเพื่อเปลี่ยนตำแหน่ง">
+                <div class="stamp-locator-header-bar"></div>
+                <div class="stamp-locator-midline"></div>
+                <div class="stamp-locator-badge" id="propLocatorBadge">เสนอ ผอ.</div>
+              </div>
+
+              <!-- Position Controls -->
+              <div>
+                <div style="margin-bottom: 5px;">
+                  <label style="font-size: 11px; font-weight: 600; color: #334155; display: block; margin-bottom: 2px;">ตำแหน่งหลัก:</label>
+                  <select id="propStampPreset" class="form-control" style="font-size: 11.5px; padding: 4px 6px; height: auto;" onchange="onStampPositionChange('proposal')">
+                    <option value="bottom-left" selected>ซ้ายล่าง (ค่าเริ่มต้นปกติ)</option>
+                    <option value="bottom-center">กึ่งกลางล่าง</option>
+                    <option value="bottom-right">ขวาล่าง</option>
+                    <option value="mid-left">กึ่งกลางหน้า - ฝั่งซ้าย</option>
+                    <option value="mid-right">กึ่งกลางหน้า - ฝั่งขวา</option>
+                    <option value="top-left">ซ้ายบน</option>
+                    <option value="top-right">ขวาบน</option>
+                  </select>
+                </div>
+
+                <!-- D-Pad Nudge & Sliders -->
+                <div class="nudge-controls-row">
+                  <div class="nudge-dpad">
+                    <div></div>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('proposal', 0, 10)" title="เลื่อนขึ้น">▲</button>
+                    <div></div>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('proposal', -10, 0)" title="เลื่อนซ้าย">◀</button>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('proposal', 0, -10)" title="เลื่อนลง">▼</button>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('proposal', 10, 0)" title="เลื่อนขวา">▶</button>
+                  </div>
+
+                  <div class="pos-slider-group">
+                    <div class="pos-slider-item">
+                      <span>X:</span>
+                      <input type="range" id="propStampOffsetX" min="-150" max="150" step="5" value="0" oninput="onStampPositionSlider('proposal')">
+                      <span class="pos-slider-val" id="propStampOffsetXVal">+0 pt</span>
+                    </div>
+                    <div class="pos-slider-item">
+                      <span>Y:</span>
+                      <input type="range" id="propStampOffsetY" min="-150" max="150" step="5" value="0" oninput="onStampPositionSlider('proposal')">
+                      <span class="pos-slider-val" id="propStampOffsetYVal">+0 pt</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -867,13 +964,23 @@
               placeholder="ข้อความสำหรับเพื่อแจ้ง หรือหมายเหตุเพิ่มเติม..." oninput="updateProposalStampPreview()">
           </div>
 
-          <!-- วันที่เสนอ (วัน/เดือน/ปี) -->
+          <!-- วันที่เสนอ (วัน/เดือน/ปี พ.ศ. พร้อมปุ่มปฏิทิน) -->
           <div class="form-group" style="margin-bottom: 12px;">
             <label class="form-label" for="prop_date">
               <i class="fa-regular fa-calendar-days text-primary"></i> วันที่เสนอ (วัน/เดือน/ปี พ.ศ.)
             </label>
-            <input type="text" id="prop_date" class="form-control" placeholder="17/10/2569"
-              oninput="updateProposalStampPreview()">
+            <div class="thai-datepicker-container" style="position: relative;">
+              <input type="text" id="prop_date" class="form-control" placeholder="วว/ดด/ปปปป"
+                onclick="ThaiDatePicker.toggle('prop_date')"
+                oninput="updateProposalStampPreview()"
+                style="padding-right: 40px; cursor: pointer; background: #ffffff;">
+              <button type="button" class="calendar-picker-btn"
+                onclick="ThaiDatePicker.toggle('prop_date')"
+                title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
+                style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                <i class="fa-regular fa-calendar-days" style="font-size: 13px;"></i>
+              </button>
+            </div>
           </div>
 
           <!-- ช่องแนบลายเซ็น -->
@@ -949,14 +1056,74 @@
       </div>
 
       <div class="modal-body">
-        <!-- Left: Live Stamp 3 Preview -->
+        <!-- Left: Live Stamp 3 Preview & Position Control -->
         <div class="preview-pane">
           <div class="preview-pane-header">
-            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มความเห็น ผอ.
-              (จะประทับลงด้านขวาล่าง)</span>
+            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มความเห็น ผอ.</span>
+            <span class="badge badge-info" style="font-size: 11px;"><i class="fa-solid fa-arrows-up-down-left-right"></i> ปรับตำแหน่งได้</span>
           </div>
           <div class="preview-canvas-container" id="directorStampPreviewContainer">
             <!-- Rendered preview of Stamp 3 -->
+          </div>
+
+          <!-- แผงปรับตำแหน่งตราปั๊มความเห็น ผอ. บนหน้าเอกสาร -->
+          <div class="stamp-position-box">
+            <div class="stamp-position-box-header">
+              <span><i class="fa-solid fa-crosshairs text-primary"></i> ปรับตำแหน่งบนหน้าเอกสาร</span>
+              <button type="button" class="btn btn-outline btn-sm" onclick="resetStampPosition('director')" style="padding: 1px 8px; font-size: 11px;">
+                <i class="fa-solid fa-rotate-left"></i> รีเซ็ต
+              </button>
+            </div>
+            
+            <div class="stamp-position-grid">
+              <!-- Mini A4 Mockup Locator -->
+              <div class="stamp-locator-mockup" id="dirLocatorMockup" onclick="handleLocatorMockupClick(event, 'director')" title="คลิกบนหน้ากระดาษจำลองเพื่อเปลี่ยนตำแหน่ง">
+                <div class="stamp-locator-header-bar"></div>
+                <div class="stamp-locator-midline"></div>
+                <div class="stamp-locator-badge" id="dirLocatorBadge">ความเห็น ผอ.</div>
+              </div>
+
+              <!-- Position Controls -->
+              <div>
+                <div style="margin-bottom: 5px;">
+                  <label style="font-size: 11px; font-weight: 600; color: #334155; display: block; margin-bottom: 2px;">ตำแหน่งหลัก:</label>
+                  <select id="dirStampPreset" class="form-control" style="font-size: 11.5px; padding: 4px 6px; height: auto;" onchange="onStampPositionChange('director')">
+                    <option value="bottom-right" selected>ขวาล่าง (ค่าเริ่มต้นปกติ)</option>
+                    <option value="bottom-center">กึ่งกลางล่าง</option>
+                    <option value="bottom-left">ซ้ายล่าง</option>
+                    <option value="mid-right">กึ่งกลางหน้า - ฝั่งขวา</option>
+                    <option value="mid-left">กึ่งกลางหน้า - ฝั่งซ้าย</option>
+                    <option value="top-right">ขวาบน</option>
+                    <option value="top-left">ซ้ายบน</option>
+                  </select>
+                </div>
+
+                <!-- D-Pad Nudge & Sliders -->
+                <div class="nudge-controls-row">
+                  <div class="nudge-dpad">
+                    <div></div>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('director', 0, 10)" title="เลื่อนขึ้น">▲</button>
+                    <div></div>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('director', -10, 0)" title="เลื่อนซ้าย">◀</button>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('director', 0, -10)" title="เลื่อนลง">▼</button>
+                    <button type="button" class="nudge-btn" onclick="nudgeStampPosition('director', 10, 0)" title="เลื่อนขวา">▶</button>
+                  </div>
+
+                  <div class="pos-slider-group">
+                    <div class="pos-slider-item">
+                      <span>X:</span>
+                      <input type="range" id="dirStampOffsetX" min="-150" max="150" step="5" value="0" oninput="onStampPositionSlider('director')">
+                      <span class="pos-slider-val" id="dirStampOffsetXVal">+0 pt</span>
+                    </div>
+                    <div class="pos-slider-item">
+                      <span>Y:</span>
+                      <input type="range" id="dirStampOffsetY" min="-150" max="150" step="5" value="0" oninput="onStampPositionSlider('director')">
+                      <span class="pos-slider-val" id="dirStampOffsetYVal">+0 pt</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1014,8 +1181,19 @@
                 oninput="updateDirectorStampPreview()">
             </div>
             <div class="form-group">
-              <label class="form-label" for="dir_date">วันที่สั่งการ</label>
-              <input type="text" id="dir_date" class="form-control" oninput="updateDirectorStampPreview()">
+              <label class="form-label" for="dir_date">วันที่สั่งการ (พ.ศ.)</label>
+              <div class="thai-datepicker-container" style="position: relative;">
+                <input type="text" id="dir_date" class="form-control" placeholder="วว/ดด/ปปปป"
+                  onclick="ThaiDatePicker.toggle('dir_date')"
+                  oninput="updateDirectorStampPreview()"
+                  style="padding-right: 40px; cursor: pointer; background: #ffffff;">
+                <button type="button" class="calendar-picker-btn"
+                  onclick="ThaiDatePicker.toggle('dir_date')"
+                  title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
+                  style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                  <i class="fa-regular fa-calendar-days" style="font-size: 13px;"></i>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1125,13 +1303,21 @@
           <input type="text" id="editBookNo" class="form-control" required>
         </div>
         <div class="form-group">
-          <label class="form-label">วันที่รับ (วัน/เดือน/ปี พ.ศ.)</label>
-          <div style="display: grid; grid-template-columns: 80px 1.4fr 95px; gap: 6px;">
-            <select id="editReceiveDay" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกวัน" style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
-            <select id="editReceiveMonth" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกเดือน" style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
-            <select id="editReceiveYear" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกปี พ.ศ." style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
+          <label class="form-label" for="editReceiveDate">วันที่รับ (วัน/เดือน/ปี พ.ศ.)</label>
+          <div class="thai-datepicker-container" style="position: relative;">
+            <input type="text" id="editReceiveDate" class="form-control"
+              placeholder="วว/ดด/ปปปป (พ.ศ.)"
+              autocomplete="off"
+              onclick="ThaiDatePicker.toggle('editReceiveDate')"
+              style="padding-right: 42px; font-weight: 500; font-size: 13.5px; cursor: pointer; background: #ffffff;"
+              required>
+            <button type="button" class="calendar-picker-btn" id="btnOpenCalendarEditReceive"
+              onclick="ThaiDatePicker.toggle('editReceiveDate')"
+              title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
+              style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+              <i class="fa-regular fa-calendar-days" style="font-size: 14px;"></i>
+            </button>
           </div>
-          <input type="hidden" id="editReceiveDate" required>
         </div>
         <div class="form-group">
           <label class="form-label" for="editReceiveTime">เวลา</label>

@@ -406,20 +406,154 @@ const StampEngine = (function () {
   }
 
   /**
+   * Helper: คำนวณพิกัด X, Y บนหน้า PDF ตาม Preset และค่า Offset
+   */
+  function calculateStampCoordinatesPdf(preset, offsetX, offsetY, stampW, stampH, pageW, pageH, defaultMargin = 18) {
+    let x = 0;
+    let y = 0;
+
+    switch (preset) {
+      case 'top-left':
+        x = defaultMargin;
+        y = pageH - stampH - defaultMargin;
+        break;
+      case 'top-center':
+        x = (pageW - stampW) / 2;
+        y = pageH - stampH - defaultMargin;
+        break;
+      case 'top-right':
+        x = pageW - stampW - defaultMargin;
+        y = pageH - stampH - defaultMargin;
+        break;
+      case 'bottom-left':
+        x = defaultMargin;
+        y = Math.max(55, pageH * 0.08);
+        break;
+      case 'bottom-center':
+        x = (pageW - stampW) / 2;
+        y = Math.max(55, pageH * 0.08);
+        break;
+      case 'bottom-right':
+        x = pageW - stampW - defaultMargin;
+        y = Math.max(55, pageH * 0.08);
+        break;
+      case 'mid-left':
+        x = defaultMargin;
+        y = (pageH - stampH) / 2;
+        break;
+      case 'mid-center':
+        x = (pageW - stampW) / 2;
+        y = (pageH - stampH) / 2;
+        break;
+      case 'mid-right':
+        x = pageW - stampW - defaultMargin;
+        y = (pageH - stampH) / 2;
+        break;
+      default:
+        x = pageW - stampW - defaultMargin;
+        y = pageH - stampH - defaultMargin;
+        break;
+    }
+
+    // Offset: +offsetX = เลื่อนขวา, +offsetY = เลื่อนขึ้น
+    x += (Number(offsetX) || 0);
+    y += (Number(offsetY) || 0);
+
+    // ป้องกันหลุดขอบหน้ากระดาษ
+    x = Math.max(0, Math.min(pageW - stampW, x));
+    y = Math.max(0, Math.min(pageH - stampH, y));
+
+    return { x, y };
+  }
+
+  /**
+   * Helper: คำนวณพิกัด X, Y บน Canvas รูปภาพตาม Preset และค่า Offset
+   */
+  function calculateStampCoordinatesImage(preset, offsetX, offsetY, stampW, stampH, W, H, defaultMargin = 20) {
+    let x = 0;
+    let y = 0;
+
+    switch (preset) {
+      case 'top-left':
+        x = defaultMargin;
+        y = defaultMargin;
+        break;
+      case 'top-center':
+        x = (W - stampW) / 2;
+        y = defaultMargin;
+        break;
+      case 'top-right':
+        x = W - stampW - defaultMargin;
+        y = defaultMargin;
+        break;
+      case 'bottom-left':
+        x = defaultMargin;
+        y = H - stampH - Math.max(defaultMargin * 2.2, H * 0.08);
+        break;
+      case 'bottom-center':
+        x = (W - stampW) / 2;
+        y = H - stampH - Math.max(defaultMargin * 2.2, H * 0.08);
+        break;
+      case 'bottom-right':
+        x = W - stampW - defaultMargin;
+        y = H - stampH - Math.max(defaultMargin * 2.2, H * 0.08);
+        break;
+      case 'mid-left':
+        x = defaultMargin;
+        y = (H - stampH) / 2;
+        break;
+      case 'mid-center':
+        x = (W - stampW) / 2;
+        y = (H - stampH) / 2;
+        break;
+      case 'mid-right':
+        x = W - stampW - defaultMargin;
+        y = (H - stampH) / 2;
+        break;
+      default:
+        x = W - stampW - defaultMargin;
+        y = defaultMargin;
+        break;
+    }
+
+    const scaleFactor = Math.max(1, W / 595.28);
+    x += (Number(offsetX) || 0) * scaleFactor;
+    y -= (Number(offsetY) || 0) * scaleFactor;
+
+    x = Math.max(0, Math.min(W - stampW, x));
+    y = Math.max(0, Math.min(H - stampH, y));
+
+    return { x, y };
+  }
+
+  /**
    * Embed stamps onto PDF document
    * @param {Object} options
    *   pdfBytes: ArrayBuffer or Uint8Array
    *   stamp1Canvas: HTMLCanvasElement or null
    *   stamp2Canvas: HTMLCanvasElement or null
    *   stamp3Canvas: HTMLCanvasElement or null
+   *   stamp1Pos: { preset, offsetX, offsetY } or null
+   *   stamp2Pos: { preset, offsetX, offsetY } or null
+   *   stamp3Pos: { preset, offsetX, offsetY } or null
    */
   async function stampPdfDocument(options) {
     if (!window.PDFLib) {
       throw new Error('PDF-Lib library is not loaded');
     }
 
-    const { pdfBytes, stamp1Canvas, stamp2Canvas, stamp3Canvas } = options;
-    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+    const {
+      pdfBytes,
+      stamp1Canvas,
+      stamp2Canvas,
+      stamp3Canvas,
+      stamp1Pos,
+      stamp2Pos,
+      stamp3Pos
+    } = options;
+
+    // Load PDF with ignoreEncryption: true to handle encrypted/permission-restricted government PDFs
+    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
     const pages = pdfDoc.getPages();
     const page = pages[0]; // First page
     const pageWidth = page.getWidth();
@@ -440,52 +574,73 @@ const StampEngine = (function () {
     // 1. Stamp 1: Top Right (มุมบนขวา - ปรับขนาดให้ใหญ่ขึ้น ชัดเจน สง่างาม)
     if (stamp1Canvas) {
       const stamp1Image = await embedCanvasAsPng(stamp1Canvas);
-      // Desired width on page ~ 230 pt (increased ~21% from 190 pt)
       const s1Width = Math.min(235, pageWidth * 0.38);
       const s1Height = s1Width * (887 / 1774);
-      const margin = 18;
+      const pos1 = stamp1Pos || {};
+      const coords1 = calculateStampCoordinatesPdf(
+        pos1.preset || 'top-right',
+        pos1.offsetX || 0,
+        pos1.offsetY || 0,
+        s1Width,
+        s1Height,
+        pageWidth,
+        pageHeight,
+        18
+      );
 
       page.drawImage(stamp1Image, {
-        x: pageWidth - s1Width - margin,
-        y: pageHeight - s1Height - margin,
+        x: coords1.x,
+        y: coords1.y,
         width: s1Width,
         height: s1Height
       });
     }
 
-    // 2. Stamp 2: เสนอ ผอ. (ด้านซ้ายล่าง: ปรับตำแหน่งขึ้นมาอีก + ลดขนาดลงหน่อย)
+    // 2. Stamp 2: เสนอ ผอ. (ด้านซ้ายล่าง ปรับตำแหน่งตามที่ผู้ใช้กำหนดได้)
     if (stamp2Canvas) {
       const stamp2Image = await embedCanvasAsPng(stamp2Canvas);
-      // Reduced size: from 0.42 (235pt) down to ~195pt (0.34)
       const s2Width = Math.min(195, pageWidth * 0.34);
       const s2Height = s2Width * (887 / 1774);
-      const margin = 20;
-
-      // Position: Move higher up (68pt or 10% of page height from bottom)
-      const posY = Math.max(68, pageHeight * 0.10);
+      const pos2 = stamp2Pos || {};
+      const coords2 = calculateStampCoordinatesPdf(
+        pos2.preset || 'bottom-left',
+        pos2.offsetX || 0,
+        pos2.offsetY || 0,
+        s2Width,
+        s2Height,
+        pageWidth,
+        pageHeight,
+        20
+      );
 
       page.drawImage(stamp2Image, {
-        x: margin,
-        y: posY,
+        x: coords2.x,
+        y: coords2.y,
         width: s2Width,
         height: s2Height
       });
     }
 
-    // 3. Stamp 3: ความคิดเห็น ผอ. (ด้านขวาล่าง: ปรับตำแหน่งขึ้นมาอีก + ลดขนาดลงหน่อย)
+    // 3. Stamp 3: ความคิดเห็น ผอ. (ด้านขวาล่าง ปรับตำแหน่งตามที่ผู้ใช้กำหนดได้)
     if (stamp3Canvas) {
       const stamp3Image = await embedCanvasAsPng(stamp3Canvas);
-      // Reduced size: from 0.42 (235pt) down to ~195pt (0.34)
       const s3Width = Math.min(195, pageWidth * 0.34);
       const s3Height = s3Width * (972 / 1619);
-      const margin = 20;
-
-      // Position: Move higher up (68pt or 10% of page height from bottom)
-      const posY = Math.max(68, pageHeight * 0.10);
+      const pos3 = stamp3Pos || {};
+      const coords3 = calculateStampCoordinatesPdf(
+        pos3.preset || 'bottom-right',
+        pos3.offsetX || 0,
+        pos3.offsetY || 0,
+        s3Width,
+        s3Height,
+        pageWidth,
+        pageHeight,
+        20
+      );
 
       page.drawImage(stamp3Image, {
-        x: pageWidth - s3Width - margin,
-        y: posY,
+        x: coords3.x,
+        y: coords3.y,
         width: s3Width,
         height: s3Height
       });
@@ -499,7 +654,15 @@ const StampEngine = (function () {
    * Embed stamps onto Image document
    */
   async function stampImageDocument(options) {
-    const { imageSource, stamp1Canvas, stamp2Canvas, stamp3Canvas } = options;
+    const {
+      imageSource,
+      stamp1Canvas,
+      stamp2Canvas,
+      stamp3Canvas,
+      stamp1Pos,
+      stamp2Pos,
+      stamp3Pos
+    } = options;
     const baseImg = await loadImage(imageSource);
 
     const canvas = document.createElement('canvas');
@@ -513,34 +676,58 @@ const StampEngine = (function () {
     const W = canvas.width;
     const H = canvas.height;
 
-    // Stamp 1: Top Right (ปรับขนาดให้ใหญ่ขึ้น)
+    // Stamp 1: Top Right
     if (stamp1Canvas) {
       const s1W = Math.max(410, W * 0.38);
       const s1H = s1W * (887 / 1774);
-      const margin = W * 0.025;
-      ctx.drawImage(stamp1Canvas, W - s1W - margin, margin, s1W, s1H);
+      const pos1 = stamp1Pos || {};
+      const coords1 = calculateStampCoordinatesImage(
+        pos1.preset || 'top-right',
+        pos1.offsetX || 0,
+        pos1.offsetY || 0,
+        s1W,
+        s1H,
+        W,
+        H,
+        W * 0.025
+      );
+      ctx.drawImage(stamp1Canvas, coords1.x, coords1.y, s1W, s1H);
     }
 
-    // Stamp 2: Bottom Left (ปรับตำแหน่งขึ้นมาอีก + ลดขนาดลงหน่อย)
+    // Stamp 2: Bottom Left
     if (stamp2Canvas) {
-      // Reduced size: 0.34
       const s2W = Math.max(330, W * 0.34);
       const s2H = s2W * (887 / 1774);
-      const margin = W * 0.03;
-      // Y moved higher up from bottom (H * 0.09)
-      const y = H - s2H - Math.max(margin * 2.2, H * 0.09);
-      ctx.drawImage(stamp2Canvas, margin, y, s2W, s2H);
+      const pos2 = stamp2Pos || {};
+      const coords2 = calculateStampCoordinatesImage(
+        pos2.preset || 'bottom-left',
+        pos2.offsetX || 0,
+        pos2.offsetY || 0,
+        s2W,
+        s2H,
+        W,
+        H,
+        W * 0.03
+      );
+      ctx.drawImage(stamp2Canvas, coords2.x, coords2.y, s2W, s2H);
     }
 
-    // Stamp 3: Bottom Right (ปรับตำแหน่งขึ้นมาอีก + ลดขนาดลงหน่อย)
+    // Stamp 3: Bottom Right
     if (stamp3Canvas) {
-      // Reduced size: 0.34
       const s3W = Math.max(330, W * 0.34);
       const s3H = s3W * (972 / 1619);
-      const margin = W * 0.03;
-      // Y moved higher up from bottom (H * 0.09)
-      const y = H - s3H - Math.max(margin * 2.2, H * 0.09);
-      ctx.drawImage(stamp3Canvas, W - s3W - margin, y, s3W, s3H);
+      const pos3 = stamp3Pos || {};
+      const coords3 = calculateStampCoordinatesImage(
+        pos3.preset || 'bottom-right',
+        pos3.offsetX || 0,
+        pos3.offsetY || 0,
+        s3W,
+        s3H,
+        W,
+        H,
+        W * 0.03
+      );
+      ctx.drawImage(stamp3Canvas, coords3.x, coords3.y, s3W, s3H);
     }
 
     return {
@@ -623,6 +810,8 @@ const StampEngine = (function () {
     renderStamp1Canvas,
     renderStamp2Canvas,
     renderStamp3Canvas,
+    calculateStampCoordinatesPdf,
+    calculateStampCoordinatesImage,
     stampPdfDocument,
     stampImageDocument,
     createSampleDocumentPdf,

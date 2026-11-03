@@ -21,8 +21,8 @@ const AppState = {
   currentDocId: null, // Active document being stamped
   activeViewFileIndex: 0,
   activeTab: 'receive', // 'receive' | 'pending' | 'search' | 'settings'
-  showAllInbound: false, // Default show 5 items
-  showAllPending: false, // Default show 5 items
+  showAllInbound: true, // Default show all items from database
+  showAllPending: true, // Default show all items from database
 
   // Main Section Navigation (Left Sidebar)
   currentMainSection: 'receive', // 'receive' | 'outbound' | 'order'
@@ -335,134 +335,355 @@ function populateTeacherDropdowns() {
 }
 
 /* ==========================================================================
-   Day/Month/Year Date Selectors (วันที่รับ - เลือกได้ ไม่ต้องกรอกเอง)
+   Thai Buddhist Era Date Picker Module (ปฏิทินไทย พ.ศ. เลือกวัน/เดือน/ปี ช่องเดียว)
    ========================================================================== */
-function initReceiveDateSelectors() {
-  const daySelect = document.getElementById('receiveDay');
-  const monthSelect = document.getElementById('receiveMonth');
-  const yearSelect = document.getElementById('receiveYear');
+const ThaiDatePicker = (function() {
+  let activeInputId = null;
+  let viewYearBE = ThaiDateUtil.getBuddhistYear();
+  let viewMonth = new Date().getMonth(); // 0-11
+  let selectedDay = new Date().getDate();
+  let popupEl = null;
 
-  if (!daySelect || !monthSelect || !yearSelect) return;
+  function init() {
+    if (popupEl) return;
+    popupEl = document.createElement('div');
+    popupEl.id = 'thaiCalendarPopup';
+    popupEl.className = 'thai-calendar-popup';
+    popupEl.style.display = 'none';
+    popupEl.style.position = 'fixed';
+    popupEl.style.zIndex = '99999';
+    document.body.appendChild(popupEl);
 
-  // 1. Days 01 - 31
-  daySelect.innerHTML = Array.from({ length: 31 }, (_, i) => {
-    const d = String(i + 1).padStart(2, '0');
-    return `<option value="${d}">${d}</option>`;
-  }).join('');
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!popupEl || popupEl.style.display === 'none') return;
+      const target = e.target;
+      if (popupEl.contains(target)) return;
+      if (activeInputId) {
+        const input = document.getElementById(activeInputId);
+        if (input && (input === target || input.contains(target))) return;
+        const parent = input?.parentElement;
+        if (parent && parent.contains(target)) return;
+      }
+      close();
+    }, true);
 
-  // 2. Months 01 - 12 (Thai short name + full name)
-  monthSelect.innerHTML = ThaiDateUtil.thaiMonths.map((name, idx) => {
-    const val = String(idx + 1).padStart(2, '0');
-    const shortName = ThaiDateUtil.thaiMonthsShort[idx];
-    return `<option value="${val}">${shortName} (${name})</option>`;
-  }).join('');
+    // Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && popupEl && popupEl.style.display !== 'none') {
+        close();
+      }
+    });
 
-  // 3. Years (Current Buddhist year +- 5 years)
-  const currentBEYear = ThaiDateUtil.getBuddhistYear();
-  const years = [];
-  for (let y = currentBEYear - 3; y <= currentBEYear + 6; y++) {
-    years.push(y);
+    // Window resize
+    window.addEventListener('resize', () => {
+      if (popupEl && popupEl.style.display !== 'none') {
+        positionPopup();
+      }
+    });
   }
-  yearSelect.innerHTML = years.map(y => `<option value="${y}">พ.ศ. ${y}</option>`).join('');
 
-  // Default to today
+  function parseDateString(val) {
+    if (!val) return null;
+    const str = String(val).trim();
+    if (!str) return null;
+
+    // DD/MM/YYYY
+    const dmyMatch = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10) - 1;
+      let year = parseInt(dmyMatch[3], 10);
+      if (year < 2400) year += 543;
+      return { day, month, yearBE: year };
+    }
+
+    // YYYY-MM-DD
+    const ymdMatch = str.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+    if (ymdMatch) {
+      let year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10) - 1;
+      const day = parseInt(ymdMatch[3], 10);
+      if (year < 2400) year += 543;
+      return { day, month, yearBE: year };
+    }
+
+    // Date object / ISO string
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const day = d.getDate();
+      const month = d.getMonth();
+      const yearBE = d.getFullYear() + (d.getFullYear() < 2400 ? 543 : 0);
+      return { day, month, yearBE };
+    }
+
+    return null;
+  }
+
+  function open(inputId) {
+    init();
+    activeInputId = inputId;
+    const input = document.getElementById(inputId);
+    const parsed = parseDateString(input?.value);
+    const now = new Date();
+    const todayYearBE = ThaiDateUtil.getBuddhistYear(now);
+
+    if (parsed) {
+      viewYearBE = parsed.yearBE;
+      viewMonth = parsed.month;
+      selectedDay = parsed.day;
+    } else {
+      viewYearBE = todayYearBE;
+      viewMonth = now.getMonth();
+      selectedDay = now.getDate();
+    }
+
+    render();
+    popupEl.style.display = 'block';
+    positionPopup();
+  }
+
+  function close() {
+    if (popupEl) {
+      popupEl.style.display = 'none';
+    }
+    activeInputId = null;
+  }
+
+  function toggle(inputId) {
+    init();
+    if (popupEl && popupEl.style.display !== 'none' && activeInputId === inputId) {
+      close();
+    } else {
+      open(inputId);
+    }
+  }
+
+  function positionPopup() {
+    if (!activeInputId || !popupEl) return;
+    const input = document.getElementById(activeInputId);
+    if (!input) return;
+
+    const rect = input.getBoundingClientRect();
+    const popupWidth = 295;
+    const popupHeight = 310;
+
+    let left = rect.left;
+    let top = rect.bottom + 4;
+
+    // Check right screen boundary
+    if (left + popupWidth > window.innerWidth - 10) {
+      left = Math.max(10, window.innerWidth - popupWidth - 10);
+    }
+    if (left < 10) left = 10;
+
+    // Check bottom screen boundary (flip up if needed)
+    if (top + popupHeight > window.innerHeight - 10 && rect.top > popupHeight + 10) {
+      top = rect.top - popupHeight - 4;
+    }
+
+    popupEl.style.top = `${top}px`;
+    popupEl.style.left = `${left}px`;
+  }
+
+  function prevMonth() {
+    viewMonth--;
+    if (viewMonth < 0) {
+      viewMonth = 11;
+      viewYearBE--;
+    }
+    render();
+  }
+
+  function nextMonth() {
+    viewMonth++;
+    if (viewMonth > 11) {
+      viewMonth = 0;
+      viewYearBE++;
+    }
+    render();
+  }
+
+  function onMonthChange(newMonth) {
+    viewMonth = parseInt(newMonth, 10);
+    render();
+  }
+
+  function onYearChange(newYear) {
+    viewYearBE = parseInt(newYear, 10);
+    render();
+  }
+
+  function selectDay(day) {
+    if (!activeInputId) return;
+    const input = document.getElementById(activeInputId);
+    if (input) {
+      const dStr = String(day).padStart(2, '0');
+      const mStr = String(viewMonth + 1).padStart(2, '0');
+      const formatted = `${dStr}/${mStr}/${viewYearBE}`;
+      input.value = formatted;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      if (activeInputId === 'receiveDate' && typeof updateInboundStampPreview === 'function') {
+        updateInboundStampPreview();
+      } else if (activeInputId === 'prop_date' && typeof updateProposalStampPreview === 'function') {
+        updateProposalStampPreview();
+      } else if (activeInputId === 'dir_date' && typeof updateDirectorStampPreview === 'function') {
+        updateDirectorStampPreview();
+      }
+    }
+    close();
+  }
+
+  function selectToday() {
+    const now = new Date();
+    viewYearBE = ThaiDateUtil.getBuddhistYear(now);
+    viewMonth = now.getMonth();
+    selectDay(now.getDate());
+  }
+
+  function render() {
+    if (!popupEl) return;
+    const now = new Date();
+    const todayYearBE = ThaiDateUtil.getBuddhistYear(now);
+    const todayMonth = now.getMonth();
+    const todayDay = now.getDate();
+
+    const yearCE = viewYearBE - 543;
+    const firstDayOfWeek = new Date(yearCE, viewMonth, 1).getDay(); // 0=Sun, 6=Sat
+    const daysInMonth = new Date(yearCE, viewMonth + 1, 0).getDate();
+
+    // Month Select Options
+    const monthOptions = ThaiDateUtil.thaiMonths.map((mName, idx) => {
+      const selected = idx === viewMonth ? 'selected' : '';
+      return `<option value="${idx}" ${selected}>${mName}</option>`;
+    }).join('');
+
+    // Year Select Options
+    const curYear = ThaiDateUtil.getBuddhistYear();
+    const years = [];
+    for (let y = curYear - 5; y <= curYear + 6; y++) {
+      years.push(y);
+    }
+    if (!years.includes(viewYearBE)) {
+      years.push(viewYearBE);
+      years.sort((a, b) => a - b);
+    }
+    const yearOptions = years.map(y => {
+      const selected = y === viewYearBE ? 'selected' : '';
+      return `<option value="${y}" ${selected}>พ.ศ. ${y}</option>`;
+    }).join('');
+
+    // Weekdays
+    const weekdaysHtml = `
+      <div class="thai-calendar-weekdays">
+        <div class="thai-calendar-weekday weekend">อา</div>
+        <div class="thai-calendar-weekday">จ</div>
+        <div class="thai-calendar-weekday">อ</div>
+        <div class="thai-calendar-weekday">พ</div>
+        <div class="thai-calendar-weekday">พฤ</div>
+        <div class="thai-calendar-weekday">ศ</div>
+        <div class="thai-calendar-weekday weekend">ส</div>
+      </div>
+    `;
+
+    // Days Grid
+    let daysHtml = '<div class="thai-calendar-grid">';
+    for (let i = 0; i < firstDayOfWeek; i++) {
+      daysHtml += '<div class="thai-calendar-day empty"></div>';
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      const isToday = (d === todayDay && viewMonth === todayMonth && viewYearBE === todayYearBE);
+      const isSelected = (d === selectedDay);
+      const classes = ['thai-calendar-day'];
+      if (isToday) classes.push('today');
+      if (isSelected) classes.push('selected');
+      daysHtml += `<div class="${classes.join(' ')}" onclick="ThaiDatePicker.selectDay(${d})">${d}</div>`;
+    }
+    daysHtml += '</div>';
+
+    popupEl.innerHTML = `
+      <div class="thai-calendar-header">
+        <button type="button" class="thai-calendar-nav-btn" onclick="ThaiDatePicker.prevMonth()" title="เดือนก่อนหน้า">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <div class="thai-calendar-title-selects">
+          <select class="thai-calendar-select" onchange="ThaiDatePicker.onMonthChange(this.value)">
+            ${monthOptions}
+          </select>
+          <select class="thai-calendar-select" onchange="ThaiDatePicker.onYearChange(this.value)">
+            ${yearOptions}
+          </select>
+        </div>
+        <button type="button" class="thai-calendar-nav-btn" onclick="ThaiDatePicker.nextMonth()" title="เดือนถัดไป">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+      ${weekdaysHtml}
+      ${daysHtml}
+      <div class="thai-calendar-footer">
+        <button type="button" class="thai-calendar-footer-btn today-btn" onclick="ThaiDatePicker.selectToday()">
+          <i class="fa-solid fa-calendar-day"></i> วันนี้
+        </button>
+        <button type="button" class="thai-calendar-footer-btn close-btn" onclick="ThaiDatePicker.close()">
+          <i class="fa-solid fa-xmark"></i> ปิด
+        </button>
+      </div>
+    `;
+  }
+
+  return {
+    init,
+    open,
+    close,
+    toggle,
+    prevMonth,
+    nextMonth,
+    onMonthChange,
+    onYearChange,
+    selectDay,
+    selectToday
+  };
+})();
+
+function initReceiveDateSelectors() {
+  ThaiDatePicker.init();
   setReceiveDateToToday();
 }
 
 function setReceiveDateToToday() {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = String(ThaiDateUtil.getBuddhistYear(now));
-
-  const daySelect = document.getElementById('receiveDay');
-  const monthSelect = document.getElementById('receiveMonth');
-  const yearSelect = document.getElementById('receiveYear');
   const dateInput = document.getElementById('receiveDate');
-
-  if (daySelect) daySelect.value = day;
-  if (monthSelect) monthSelect.value = month;
-  if (yearSelect) yearSelect.value = year;
   if (dateInput) {
-    dateInput.value = `${day}/${month}/${year}`;
+    dateInput.value = ThaiDateUtil.formatThaiDateShort(new Date());
   }
-
   updateInboundStampPreview();
 }
 
 function onReceiveDateSelectChange() {
-  const daySelect = document.getElementById('receiveDay');
-  const monthSelect = document.getElementById('receiveMonth');
-  const yearSelect = document.getElementById('receiveYear');
-  const dateInput = document.getElementById('receiveDate');
-
-  if (daySelect && monthSelect && yearSelect && dateInput) {
-    dateInput.value = `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`;
-  }
-
   updateInboundStampPreview();
 }
 
-// Edit Modal Date Selectors
 function initEditReceiveDateSelectors() {
-  const daySelect = document.getElementById('editReceiveDay');
-  const monthSelect = document.getElementById('editReceiveMonth');
-  const yearSelect = document.getElementById('editReceiveYear');
-
-  if (!daySelect || !monthSelect || !yearSelect) return;
-
-  daySelect.innerHTML = Array.from({ length: 31 }, (_, i) => {
-    const d = String(i + 1).padStart(2, '0');
-    return `<option value="${d}">${d}</option>`;
-  }).join('');
-
-  monthSelect.innerHTML = ThaiDateUtil.thaiMonths.map((name, idx) => {
-    const val = String(idx + 1).padStart(2, '0');
-    const shortName = ThaiDateUtil.thaiMonthsShort[idx];
-    return `<option value="${val}">${shortName} (${name})</option>`;
-  }).join('');
-
-  const currentBEYear = ThaiDateUtil.getBuddhistYear();
-  const years = [];
-  for (let y = currentBEYear - 3; y <= currentBEYear + 6; y++) {
-    years.push(y);
-  }
-  yearSelect.innerHTML = years.map(y => `<option value="${y}">พ.ศ. ${y}</option>`).join('');
+  // Compatible stub for modals
+  ThaiDatePicker.init();
 }
 
 function setEditReceiveDate(dateStr) {
-  initEditReceiveDateSelectors();
-  const daySelect = document.getElementById('editReceiveDay');
-  const monthSelect = document.getElementById('editReceiveMonth');
-  const yearSelect = document.getElementById('editReceiveYear');
   const dateInput = document.getElementById('editReceiveDate');
+  if (!dateInput) return;
 
-  let day = '01', month = '01', year = String(ThaiDateUtil.getBuddhistYear());
-  if (dateStr) {
-    const formatted = ThaiDateUtil.formatDisplayDate(dateStr);
-    const parts = formatted.includes('/') ? formatted.split('/') : formatted.split('-');
-    if (parts.length >= 3) {
-      day = String(parts[0]).padStart(2, '0');
-      month = String(parts[1]).padStart(2, '0');
-      year = String(parts[2]);
-    }
+  if (!dateStr) {
+    dateInput.value = ThaiDateUtil.formatThaiDateShort(new Date());
+    return;
   }
 
-  if (daySelect) daySelect.value = day;
-  if (monthSelect) monthSelect.value = month;
-  if (yearSelect) yearSelect.value = year;
-  if (dateInput) dateInput.value = `${day}/${month}/${year}`;
+  const formatted = ThaiDateUtil.formatDisplayDate(dateStr);
+  dateInput.value = (formatted && formatted !== '-') ? formatted : ThaiDateUtil.formatThaiDateShort(new Date());
 }
 
 function onEditReceiveDateChange() {
-  const daySelect = document.getElementById('editReceiveDay');
-  const monthSelect = document.getElementById('editReceiveMonth');
-  const yearSelect = document.getElementById('editReceiveYear');
-  const dateInput = document.getElementById('editReceiveDate');
-
-  if (daySelect && monthSelect && yearSelect && dateInput) {
-    dateInput.value = `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`;
-  }
+  // Compatible stub
 }
 
 /* ==========================================================================
@@ -809,9 +1030,12 @@ async function saveInboundDocument(e) {
     return;
   }
 
-  // If no files selected, offer auto sample
+  // Must select an actual document file - never create dummy/sample files on our own
   if (!AppState.selectedFiles || AppState.selectedFiles.length === 0) {
-    await generateSampleDoc();
+    showToast('กรุณาเลือกไฟล์เอกสารแนบที่ต้องการลงรับ (PDF หรือ รูปภาพ)', 'warning');
+    const fileInput = document.getElementById('docFileInput');
+    if (fileInput) fileInput.click();
+    return;
   }
 
   // Set loading state
@@ -821,7 +1045,7 @@ async function saveInboundDocument(e) {
   }
 
   try {
-    const primaryFile = AppState.selectedFiles && AppState.selectedFiles[0];
+    const primaryFile = AppState.selectedFiles[0];
     if (!primaryFile) {
       showToast('ไม่พบไฟล์เอกสารสำหรับประทับตรา กรุณาลองใหม่อีกครั้ง', 'warning');
       return;
@@ -835,12 +1059,14 @@ async function saveInboundDocument(e) {
     });
 
     let primaryStampedDataUrl = null;
+    const stamp1Pos = getStampPositionValues('inbound');
 
     // 2. Stamp immediately onto primary document
     if (primaryFile.type === 'application/pdf') {
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
         pdfBytes: primaryFile.bytes,
-        stamp1Canvas: stamp1.canvas
+        stamp1Canvas: stamp1.canvas,
+        stamp1Pos: stamp1Pos
       });
 
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
@@ -849,7 +1075,8 @@ async function saveInboundDocument(e) {
       // Image stamping
       const stampedImg = await StampEngine.stampImageDocument({
         imageSource: primaryFile.dataUrl,
-        stamp1Canvas: stamp1.canvas
+        stamp1Canvas: stamp1.canvas,
+        stamp1Pos: stamp1Pos
       });
       primaryStampedDataUrl = stampedImg.dataUrl;
     }
@@ -877,6 +1104,7 @@ async function saveInboundDocument(e) {
       fileType: primaryFile.type,
       originalDataUrl: primaryFile.dataUrl,
       stampedDataUrl: primaryStampedDataUrl,
+      stamp1Pos: stamp1Pos,
       files: filesList,
       status: 'รอเสนอ ผอ.', // Step 1 complete -> Next is Step 2
       step: 1,
@@ -986,9 +1214,8 @@ function renderInboundTable() {
     return;
   }
 
-  // Show only 5 items by default, or all items if toggled
-  const limit = 5;
-  const displayRecords = AppState.showAllInbound ? AppState.records : AppState.records.slice(0, limit);
+  // Show all items by default to strictly adhere to database
+  const displayRecords = AppState.showAllInbound ? AppState.records : AppState.records.slice(0, 15);
 
   tbody.innerHTML = displayRecords.map((r, i) => `
     <tr>
@@ -1060,8 +1287,8 @@ function renderPendingTable() {
     return;
   }
 
-  const limit = 5;
-  const displayRecords = AppState.showAllPending ? AppState.records : AppState.records.slice(0, limit);
+  // Show all items by default to strictly adhere to database
+  const displayRecords = AppState.showAllPending ? AppState.records : AppState.records.slice(0, 15);
 
   tbody.innerHTML = displayRecords.map((r, i) => {
     const isCompleted = r.status === 'เสร็จสิ้น';
@@ -1407,6 +1634,10 @@ function openProposalModal(docId) {
   const txt = document.getElementById('sigScaleProposalText');
   if (txt) txt.textContent = Math.round(AppState.sigScaleProposal * 100) + '%';
 
+  // Restore or reset stamp position
+  const savedPos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
+  setStampPositionValues('proposal', savedPos);
+
   if (AppState.sigPadProposal) {
     AppState.sigPadProposal.clear();
     if (data.signatureDataUrl) {
@@ -1490,13 +1721,18 @@ async function handleSaveProposal() {
       date
     });
 
-    // 2. Re-stamp Document with Stamp 1 and Stamp 2 (Bottom-Left)
+    // 2. Re-stamp Document with Stamp 1 and Stamp 2 (with user-defined positions)
+    const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
+    const stamp2Pos = getStampPositionValues('proposal');
+
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
         pdfBytes: originalBytes,
         stamp1Canvas: stamp1.canvas,
-        stamp2Canvas: stamp2.canvas
+        stamp2Canvas: stamp2.canvas,
+        stamp1Pos: stamp1Pos,
+        stamp2Pos: stamp2Pos
       });
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
       doc.stampedDataUrl = await blobToDataUrl(blob);
@@ -1504,7 +1740,9 @@ async function handleSaveProposal() {
       const stampedImg = await StampEngine.stampImageDocument({
         imageSource: doc.originalDataUrl,
         stamp1Canvas: stamp1.canvas,
-        stamp2Canvas: stamp2.canvas
+        stamp2Canvas: stamp2.canvas,
+        stamp1Pos: stamp1Pos,
+        stamp2Pos: stamp2Pos
       });
       doc.stampedDataUrl = stampedImg.dataUrl;
     }
@@ -1512,6 +1750,8 @@ async function handleSaveProposal() {
     if (doc.files && doc.files.length > 0) {
       doc.files[0].stampedDataUrl = doc.stampedDataUrl;
     }
+
+    doc.stamp2Pos = stamp2Pos;
 
     // Save proposal data to record
     doc.proposalData = {
@@ -1688,6 +1928,10 @@ function openDirectorModal(docId) {
   const txt = document.getElementById('sigScaleDirectorText');
   if (txt) txt.textContent = Math.round(AppState.sigScaleDirector * 100) + '%';
 
+  // Restore or reset stamp position
+  const savedPos = doc.stamp3Pos || { preset: 'bottom-right', offsetX: 0, offsetY: 0 };
+  setStampPositionValues('director', savedPos);
+
   // Assignee dropdown
   populateTeacherDropdowns();
   const assigneeSelect = document.getElementById('directorAssignee');
@@ -1801,14 +2045,21 @@ async function handleSaveDirectorComment() {
       signatureScale
     });
 
-    // 2. Composite all stamps onto document
+    // 2. Composite all stamps onto document (with user-defined positions)
+    const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
+    const stamp2Pos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
+    const stamp3Pos = getStampPositionValues('director');
+
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
         pdfBytes: originalBytes,
         stamp1Canvas: stamp1.canvas,
         stamp2Canvas: stamp2 ? stamp2.canvas : null,
-        stamp3Canvas: stamp3.canvas
+        stamp3Canvas: stamp3.canvas,
+        stamp1Pos: stamp1Pos,
+        stamp2Pos: stamp2Pos,
+        stamp3Pos: stamp3Pos
       });
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
       doc.stampedDataUrl = await blobToDataUrl(blob);
@@ -1817,7 +2068,10 @@ async function handleSaveDirectorComment() {
         imageSource: doc.originalDataUrl,
         stamp1Canvas: stamp1.canvas,
         stamp2Canvas: stamp2 ? stamp2.canvas : null,
-        stamp3Canvas: stamp3.canvas
+        stamp3Canvas: stamp3.canvas,
+        stamp1Pos: stamp1Pos,
+        stamp2Pos: stamp2Pos,
+        stamp3Pos: stamp3Pos
       });
       doc.stampedDataUrl = stampedImg.dataUrl;
     }
@@ -1825,6 +2079,8 @@ async function handleSaveDirectorComment() {
     if (doc.files && doc.files.length > 0) {
       doc.files[0].stampedDataUrl = doc.stampedDataUrl;
     }
+
+    doc.stamp3Pos = stamp3Pos;
 
     // Save director data
     doc.directorData = {
@@ -1891,6 +2147,213 @@ function adjustSigScale(type, delta) {
     if (slider) slider.value = cur;
     onSigScaleChange('director', cur);
   }
+}
+
+/* ==========================================================================
+   Stamp Position & Locator Management (ปรับตำแหน่งตราปั๊ม และผังจำลองหน้าเอกสาร)
+   ========================================================================== */
+
+function getStampPositionValues(type) {
+  if (type === 'proposal') {
+    const preset = document.getElementById('propStampPreset')?.value || 'bottom-left';
+    const offsetX = Number(document.getElementById('propStampOffsetX')?.value || 0);
+    const offsetY = Number(document.getElementById('propStampOffsetY')?.value || 0);
+    return { preset, offsetX, offsetY };
+  } else if (type === 'director') {
+    const preset = document.getElementById('dirStampPreset')?.value || 'bottom-right';
+    const offsetX = Number(document.getElementById('dirStampOffsetX')?.value || 0);
+    const offsetY = Number(document.getElementById('dirStampOffsetY')?.value || 0);
+    return { preset, offsetX, offsetY };
+  } else if (type === 'inbound') {
+    const preset = document.getElementById('inboundStampPreset')?.value || 'top-right';
+    const offsetX = Number(document.getElementById('inboundStampOffsetX')?.value || 0);
+    const offsetY = Number(document.getElementById('inboundStampOffsetY')?.value || 0);
+    return { preset, offsetX, offsetY };
+  }
+  return { preset: 'top-right', offsetX: 0, offsetY: 0 };
+}
+
+function setStampPositionValues(type, pos = {}) {
+  const defaultPreset = (type === 'proposal') ? 'bottom-left' : (type === 'director' ? 'bottom-right' : 'top-right');
+  const preset = pos.preset || defaultPreset;
+  const offsetX = Number(pos.offsetX) || 0;
+  const offsetY = Number(pos.offsetY) || 0;
+
+  if (type === 'proposal') {
+    const presetEl = document.getElementById('propStampPreset');
+    if (presetEl) presetEl.value = preset;
+    const xEl = document.getElementById('propStampOffsetX');
+    if (xEl) xEl.value = offsetX;
+    const yEl = document.getElementById('propStampOffsetY');
+    if (yEl) yEl.value = offsetY;
+    const xVal = document.getElementById('propStampOffsetXVal');
+    if (xVal) xVal.textContent = (offsetX >= 0 ? '+' : '') + offsetX + ' pt';
+    const yVal = document.getElementById('propStampOffsetYVal');
+    if (yVal) yVal.textContent = (offsetY >= 0 ? '+' : '') + offsetY + ' pt';
+  } else if (type === 'director') {
+    const presetEl = document.getElementById('dirStampPreset');
+    if (presetEl) presetEl.value = preset;
+    const xEl = document.getElementById('dirStampOffsetX');
+    if (xEl) xEl.value = offsetX;
+    const yEl = document.getElementById('dirStampOffsetY');
+    if (yEl) yEl.value = offsetY;
+    const xVal = document.getElementById('dirStampOffsetXVal');
+    if (xVal) xVal.textContent = (offsetX >= 0 ? '+' : '') + offsetX + ' pt';
+    const yVal = document.getElementById('dirStampOffsetYVal');
+    if (yVal) yVal.textContent = (offsetY >= 0 ? '+' : '') + offsetY + ' pt';
+  } else if (type === 'inbound') {
+    const presetEl = document.getElementById('inboundStampPreset');
+    if (presetEl) presetEl.value = preset;
+    const xEl = document.getElementById('inboundStampOffsetX');
+    if (xEl) xEl.value = offsetX;
+    const yEl = document.getElementById('inboundStampOffsetY');
+    if (yEl) yEl.value = offsetY;
+  }
+
+  updateLocatorMockup(type);
+}
+
+function updateLocatorMockup(type) {
+  if (type !== 'proposal' && type !== 'director') return;
+  const badgeId = (type === 'proposal') ? 'propLocatorBadge' : 'dirLocatorBadge';
+  const badge = document.getElementById(badgeId);
+  if (!badge) return;
+
+  const pos = getStampPositionValues(type);
+  const mockupW = 86;
+  const mockupH = 122;
+  const badgeW = 38;
+  const badgeH = 18;
+  const marginX = 5;
+  const marginY = 6;
+
+  let baseLeft = marginX;
+  let baseTop = marginY;
+
+  switch (pos.preset) {
+    case 'top-left':
+      baseLeft = marginX;
+      baseTop = marginY;
+      break;
+    case 'top-center':
+      baseLeft = (mockupW - badgeW) / 2;
+      baseTop = marginY;
+      break;
+    case 'top-right':
+      baseLeft = mockupW - badgeW - marginX;
+      baseTop = marginY;
+      break;
+    case 'mid-left':
+      baseLeft = marginX;
+      baseTop = (mockupH - badgeH) / 2;
+      break;
+    case 'mid-right':
+      baseLeft = mockupW - badgeW - marginX;
+      baseTop = (mockupH - badgeH) / 2;
+      break;
+    case 'bottom-left':
+      baseLeft = marginX;
+      baseTop = mockupH - badgeH - marginY - 4;
+      break;
+    case 'bottom-center':
+      baseLeft = (mockupW - badgeW) / 2;
+      baseTop = mockupH - badgeH - marginY - 4;
+      break;
+    case 'bottom-right':
+    default:
+      baseLeft = mockupW - badgeW - marginX;
+      baseTop = mockupH - badgeH - marginY - 4;
+      break;
+  }
+
+  // Scale offset pt to mini mockup pixels (~ 86px / 595pt ~ 0.14)
+  const scale = 0.14;
+  let finalLeft = baseLeft + (pos.offsetX * scale);
+  let finalTop = baseTop - (pos.offsetY * scale);
+
+  finalLeft = Math.max(2, Math.min(mockupW - badgeW - 2, finalLeft));
+  finalTop = Math.max(2, Math.min(mockupH - badgeH - 2, finalTop));
+
+  badge.style.left = Math.round(finalLeft) + 'px';
+  badge.style.top = Math.round(finalTop) + 'px';
+}
+
+function onStampPositionChange(type) {
+  updateLocatorMockup(type);
+}
+
+function onStampPositionSlider(type) {
+  const xEl = document.getElementById(type === 'proposal' ? 'propStampOffsetX' : 'dirStampOffsetX');
+  const yEl = document.getElementById(type === 'proposal' ? 'propStampOffsetY' : 'dirStampOffsetY');
+  const xVal = document.getElementById(type === 'proposal' ? 'propStampOffsetXVal' : 'dirStampOffsetXVal');
+  const yVal = document.getElementById(type === 'proposal' ? 'propStampOffsetYVal' : 'dirStampOffsetYVal');
+
+  const x = Number(xEl?.value || 0);
+  const y = Number(yEl?.value || 0);
+
+  if (xVal) xVal.textContent = (x >= 0 ? '+' : '') + x + ' pt';
+  if (yVal) yVal.textContent = (y >= 0 ? '+' : '') + y + ' pt';
+
+  updateLocatorMockup(type);
+}
+
+function nudgeStampPosition(type, dx, dy) {
+  if (type === 'inbound') {
+    const xEl = document.getElementById('inboundStampOffsetX');
+    const yEl = document.getElementById('inboundStampOffsetY');
+    if (xEl && yEl) {
+      let curX = Number(xEl.value || 0) + dx;
+      let curY = Number(yEl.value || 0) + dy;
+      curX = Math.max(-150, Math.min(150, curX));
+      curY = Math.max(-150, Math.min(150, curY));
+      xEl.value = curX;
+      yEl.value = curY;
+      showToast(`เลื่อนตราปั้มรับเข้า: X=${curX >= 0 ? '+' : ''}${curX}pt, Y=${curY >= 0 ? '+' : ''}${curY}pt`, 'info');
+    }
+    return;
+  }
+
+  const xEl = document.getElementById(type === 'proposal' ? 'propStampOffsetX' : 'dirStampOffsetX');
+  const yEl = document.getElementById(type === 'proposal' ? 'propStampOffsetY' : 'dirStampOffsetY');
+  if (!xEl || !yEl) return;
+
+  let curX = Number(xEl.value || 0) + dx;
+  let curY = Number(yEl.value || 0) + dy;
+  curX = Math.max(-150, Math.min(150, curX));
+  curY = Math.max(-150, Math.min(150, curY));
+
+  xEl.value = curX;
+  yEl.value = curY;
+
+  onStampPositionSlider(type);
+}
+
+function resetStampPosition(type) {
+  const defaultPreset = (type === 'proposal') ? 'bottom-left' : (type === 'director' ? 'bottom-right' : 'top-right');
+  setStampPositionValues(type, { preset: defaultPreset, offsetX: 0, offsetY: 0 });
+  showToast('รีเซ็ตตำแหน่งตราปั้มเป็นค่าเริ่มต้นเรียบร้อยแล้ว', 'info');
+}
+
+function handleLocatorMockupClick(event, type) {
+  const mockup = event.currentTarget;
+  const rect = mockup.getBoundingClientRect();
+  const clickX = event.clientX - rect.left;
+  const clickY = event.clientY - rect.top;
+
+  let preset = (type === 'proposal') ? 'bottom-left' : 'bottom-right';
+  if (clickY > 60) {
+    // Bottom half
+    if (clickX < 28) preset = 'bottom-left';
+    else if (clickX > 54) preset = 'bottom-right';
+    else preset = 'bottom-center';
+  } else {
+    // Top half
+    if (clickX < 28) preset = 'top-left';
+    else if (clickX > 54) preset = 'top-right';
+    else preset = 'top-center';
+  }
+
+  setStampPositionValues(type, { preset, offsetX: 0, offsetY: 0 });
 }
 
 /* ==========================================================================
@@ -2205,20 +2668,13 @@ async function loadStoredRecords() {
     AppState.records = [];
   }
 
-  // Filter out any test rows
-  AppState.records = (AppState.records || []).filter(r => 
-    !String(r.id || '').startsWith('test_') && 
-    !String(r.title || '').includes('ทดสอบการเชื่อมต่อ') &&
-    !String(r.bookNo || '').includes('ทดสอบ')
-  );
-
   reindexRecords();
   renderAllTables();
   updateKpiStats();
   updateLatestBookNoPlaceholder();
 
-  // 3. Sync from Google Sheet in background
-  syncInboundRecordsFromGas();
+  // 3. Sync strictly with Google Sheet database
+  syncInboundRecordsFromGas(false);
 }
 
 function saveRecordsToStorage() {
@@ -2256,86 +2712,79 @@ function saveRecordsToStorage() {
   }
 }
 
-async function syncInboundRecordsFromGas() {
-  if (!AppState.gasWebAppUrl) return;
+async function syncInboundRecordsFromGas(isManual = false) {
+  if (!AppState.gasWebAppUrl) {
+    if (isManual) showToast('ยังไม่ได้ตั้งค่า Google Apps Script Web App URL', 'warning');
+    return;
+  }
 
   try {
-    const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getRecords';
+    if (isManual) {
+      showToast('กำลังเชื่อมต่อและดึงข้อมูลจาก Google Sheet...', 'info');
+    }
+
+    const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getRecords&t=' + Date.now();
     const res = await fetch(gasUrl);
     const json = await res.json();
 
-    if (json && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-      let changed = false;
+    if (json && json.status === 'success' && Array.isArray(json.data)) {
+      if (json.data.length > 0) {
+        // Cache existing local file data by id and bookNo to preserve locally attached PDFs/images
+        const localFileCache = new Map();
+        (AppState.records || []).forEach(r => {
+          if (r.id) localFileCache.set(String(r.id), r);
+          if (r.bookNo) localFileCache.set('no_' + String(r.bookNo), r);
+        });
 
-      json.data.forEach(sheetRec => {
-        if (!sheetRec.bookNo && !sheetRec.id) return;
-        // Ignore test records
-        if (sheetRec.id && String(sheetRec.id).startsWith('test_')) return;
-        if (sheetRec.title && String(sheetRec.title).includes('ทดสอบการเชื่อมต่อ')) return;
-        if (sheetRec.bookNo && String(sheetRec.bookNo).includes('ทดสอบ')) return;
+        // Reconstruct records strictly from Google Sheets database
+        AppState.records = json.data.map((sheetRec, idx) => {
+          const cached = localFileCache.get(String(sheetRec.id)) || localFileCache.get('no_' + String(sheetRec.bookNo)) || {};
 
-        // Find existing record by id or bookNo
-        let localRec = AppState.records.find(r => 
-          (r.id && sheetRec.id && String(r.id) === String(sheetRec.id)) || 
-          (r.bookNo && sheetRec.bookNo && String(r.bookNo) === String(sheetRec.bookNo))
-        );
+          return {
+            id: sheetRec.id || cached.id || ('doc_row_' + (idx + 1)),
+            orderNo: sheetRec.orderNo || (idx + 1),
+            bookNo: sheetRec.bookNo || '-',
+            receiveDate: sheetRec.receiveDate || cached.receiveDate || '',
+            receiveTime: sheetRec.receiveTime || cached.receiveTime || '',
+            title: sheetRec.title || cached.title || '',
+            assignee: sheetRec.assignee || cached.assignee || '-',
+            status: sheetRec.status || cached.status || 'รอเสนอ ผอ.',
+            step: sheetRec.status === 'เสร็จสิ้น' ? 3 : (sheetRec.proposalData || cached.proposalData ? 2 : 1),
+            driveFileUrl: sheetRec.driveFileUrl || cached.driveFileUrl || '',
+            proposalData: sheetRec.proposalData || cached.proposalData || null,
+            directorData: sheetRec.directorData || cached.directorData || null,
+            stamp1Pos: cached.stamp1Pos || null,
+            stamp2Pos: cached.stamp2Pos || null,
+            stamp3Pos: cached.stamp3Pos || null,
+            originalDataUrl: cached.originalDataUrl || '',
+            stampedDataUrl: cached.stampedDataUrl || '',
+            fileName: cached.fileName || (sheetRec.bookNo ? `หนังสือรับ_${sheetRec.bookNo}.pdf` : 'เอกสาร.pdf'),
+            fileType: cached.fileType || 'application/pdf',
+            files: cached.files || [],
+            updatedAt: sheetRec.updatedAt || cached.updatedAt || new Date().toISOString()
+          };
+        });
 
-        if (localRec) {
-          // If status in sheet is more updated (e.g. 'เสร็จสิ้น' or 'รอ ผอ. ลงนาม')
-          if (sheetRec.status && localRec.status !== sheetRec.status) {
-            localRec.status = sheetRec.status;
-            changed = true;
-          }
-          if (sheetRec.assignee && (!localRec.assignee || localRec.assignee === '-')) {
-            localRec.assignee = sheetRec.assignee;
-            changed = true;
-          }
-          if (sheetRec.proposalData && !localRec.proposalData) {
-            localRec.proposalData = sheetRec.proposalData;
-            if (!localRec.step || localRec.step < 2) localRec.step = 2;
-            changed = true;
-          }
-          if (sheetRec.directorData && !localRec.directorData) {
-            localRec.directorData = sheetRec.directorData;
-            localRec.step = 3;
-            changed = true;
-          }
-          if (sheetRec.driveFileUrl && !localRec.driveFileUrl) {
-            localRec.driveFileUrl = sheetRec.driveFileUrl;
-            changed = true;
-          }
-        } else {
-          // Record exists on Google Sheet but not in local storage, add it
-          AppState.records.push({
-            id: sheetRec.id || ('doc_' + Date.now()),
-            orderNo: sheetRec.orderNo || (AppState.records.length + 1),
-            bookNo: sheetRec.bookNo,
-            receiveDate: sheetRec.receiveDate,
-            receiveTime: sheetRec.receiveTime,
-            title: sheetRec.title,
-            assignee: sheetRec.assignee || '-',
-            status: sheetRec.status || 'รอเสนอ ผอ.',
-            step: sheetRec.status === 'เสร็จสิ้น' ? 3 : (sheetRec.proposalData ? 2 : 1),
-            driveFileUrl: sheetRec.driveFileUrl || '',
-            proposalData: sheetRec.proposalData,
-            directorData: sheetRec.directorData,
-            updatedAt: sheetRec.updatedAt || new Date().toISOString()
-          });
-          changed = true;
-        }
-      });
-
-      if (changed) {
         reindexRecords();
         saveRecordsToStorage();
         renderAllTables();
         updateKpiStats();
         updateLatestBookNoPlaceholder();
-        console.log('Synchronized records with Google Sheet successfully');
+
+        if (isManual) {
+          showToast(`✓ ซิงค์ฐานข้อมูลสำเร็จ! แสดงข้อมูลตรงตาม Google Sheet ทั้งหมด ${AppState.records.length} รายการ`, 'success');
+        }
+      } else {
+        if (isManual) {
+          showToast('เชื่อมต่อฐานข้อมูล Google Sheet สำเร็จ แต่ยังไม่มีข้อมูลแถวในชีต InboundRecords', 'info');
+        }
       }
     }
   } catch (err) {
-    console.warn('Could not sync records from Google Sheet:', err);
+    console.warn('Sync from Google Sheet failed:', err);
+    if (isManual) {
+      showToast('ไม่สามารถดึงข้อมูลจาก Google Sheet ได้: ' + err.message, 'danger');
+    }
   }
 }
 
@@ -2399,7 +2848,6 @@ async function syncExistingRecordsToGas() {
   try {
     // 1. Sync Inbound records
     for (const r of AppState.records) {
-      if (String(r.id || '').startsWith('test_') || String(r.title || '').includes('ทดสอบการเชื่อมต่อ')) continue;
       await syncToGasIfAvailable('saveRecord', r);
     }
     // 2. Sync Outbound records

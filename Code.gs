@@ -117,6 +117,10 @@ function cleanUpDuplicatesAndTests() {
   }
 
   Logger.log("✓ ลบแถวซ้ำและแถวทดสอบเรียบร้อย! คงเหลือรายการข้อมูลจริง " + (lastRow - 1) + " รายการ");
+  
+  // ทำความสะอาดไฟล์ตัวอย่างจำลองที่ระบบเคยสร้างไว้ใน Drive
+  cleanUpSampleDriveFiles();
+
   Logger.log("==================================================");
   return { status: 'success', deletedCount: rowsToDelete.length, remainingCount: lastRow - 1 };
 }
@@ -137,6 +141,8 @@ function doGet(e) {
         result = { status: 'success', data: getInboundRecords() };
       } else if (action === 'cleanDuplicates') {
         result = cleanUpDuplicatesAndTests();
+      } else if (action === 'cleanDrive') {
+        result = cleanUpSampleDriveFiles();
       }
     } catch (err) {
       result = { status: 'error', message: err.toString() };
@@ -299,23 +305,16 @@ function getInboundRecords() {
   if (rows.length <= 1) return [];
 
   const records = [];
-  const seenIds = new Set();
-  const seenBookNos = new Set();
 
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
     const id = String(r[0] || '').trim();
+    const orderNo = r[1] || i;
     const bookNo = String(r[2] || '').trim();
     const title = String(r[5] || '').trim();
 
-    // ข้ามแถวทดสอบระบบ
-    if (id.startsWith('test_') || title.includes('ทดสอบการเชื่อมต่อ')) continue;
-
-    // กรองแถวซ้ำ (Deduplicate)
-    if (id && seenIds.has(id)) continue;
-    if (bookNo && seenBookNos.has(bookNo)) continue;
-    if (id) seenIds.add(id);
-    if (bookNo) seenBookNos.add(bookNo);
+    // ข้ามเฉพาะแถวที่ว่างเปล่าสนิท
+    if (!id && !bookNo && !title) continue;
 
     let proposalData = null;
     let directorData = null;
@@ -327,18 +326,19 @@ function getInboundRecords() {
     } catch (e) {}
 
     records.push({
-      id: r[0],
-      orderNo: records.length + 1,
-      bookNo: r[2],
-      receiveDate: r[3],
-      receiveTime: r[4],
-      title: r[5],
-      assignee: r[6],
-      status: r[7],
-      driveFileUrl: r[8],
+      id: id || ('doc_row_' + (i + 1)),
+      orderNo: Number(orderNo) || i,
+      bookNo: bookNo || '-',
+      receiveDate: r[3] || '',
+      receiveTime: r[4] || '',
+      title: title || '',
+      assignee: r[6] || '-',
+      status: r[7] || 'รอเสนอ ผอ.',
+      driveFileUrl: r[8] || '',
       proposalData: proposalData,
       directorData: directorData,
-      updatedAt: r[11]
+      updatedAt: r[11] || '',
+      rowIndex: i + 1
     });
   }
 
@@ -428,22 +428,26 @@ function saveInboundRecord(record) {
 }
 
 /**
- * อัพเดทข้อมูลเสนอ ผอ. (Stamp 2)
+ * อัพเดทข้อมูลเสนอ ผอ. (Stamp 2) - ใช้ไฟล์เดิม แทนที่ไฟล์เดิม ไม่สร้างไฟล์ใหม่ในไดรฟ์
  */
 function updateProposalRecord(record) {
   const sheet = getInboundSheet();
   const rows = sheet.getDataRange().getValues();
+  const cleanBookNo = String(record.bookNo || '').replace(/[\/\\]/g, '-');
 
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(record.id)) {
       const rowIndex = i + 1;
-      let fileUrl = rows[i][8];
+      let existingFileUrl = rows[i][8] || '';
+      let fileUrl = existingFileUrl;
 
       if (record.stampedDataUrl) {
+        // อัพเดตและแทนที่ไฟล์เดิมใน Google Drive โดยไม่สร้างไฟล์เพิ่ม
         fileUrl = uploadBase64FileToDrive(
           record.stampedDataUrl,
-          'หนังสือรับ_' + record.bookNo.replace(/[\/\\]/g, '-') + '_เสนอผอ.pdf',
-          record.fileType || 'application/pdf'
+          'หนังสือรับ_' + cleanBookNo + '.pdf',
+          record.fileType || 'application/pdf',
+          existingFileUrl
         );
       }
 
@@ -459,22 +463,26 @@ function updateProposalRecord(record) {
 }
 
 /**
- * อัพเดทความคิดเห็น ผอ. และผู้รับผิดชอบ (Stamp 3)
+ * อัพเดทความคิดเห็น ผอ. และผู้รับผิดชอบ (Stamp 3) - ใช้ไฟล์เดิม แทนที่ไฟล์เดิม ไม่สร้างไฟล์ใหม่ในไดรฟ์
  */
 function updateDirectorRecord(record) {
   const sheet = getInboundSheet();
   const rows = sheet.getDataRange().getValues();
+  const cleanBookNo = String(record.bookNo || '').replace(/[\/\\]/g, '-');
 
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(record.id)) {
       const rowIndex = i + 1;
-      let fileUrl = rows[i][8];
+      let existingFileUrl = rows[i][8] || '';
+      let fileUrl = existingFileUrl;
 
       if (record.stampedDataUrl) {
+        // อัพเดตและแทนที่ไฟล์เดิมใน Google Drive โดยไม่สร้างไฟล์เพิ่ม
         fileUrl = uploadBase64FileToDrive(
           record.stampedDataUrl,
-          'หนังสือรับ_' + record.bookNo.replace(/[\/\\]/g, '-') + '_เสร็จสิ้น.pdf',
-          record.fileType || 'application/pdf'
+          'หนังสือรับ_' + cleanBookNo + '.pdf',
+          record.fileType || 'application/pdf',
+          existingFileUrl
         );
       }
 
@@ -512,7 +520,7 @@ function editInboundRecord(record) {
 }
 
 /**
- * ลบรายการหนังสือรับ
+ * ลบรายการหนังสือรับ และลบไฟล์ใน Google Drive
  */
 function deleteInboundRecord(id) {
   const sheet = getInboundSheet();
@@ -520,6 +528,16 @@ function deleteInboundRecord(id) {
 
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(id)) {
+      const fileUrl = rows[i][8] || '';
+      if (fileUrl) {
+        const urls = fileUrl.split('\n');
+        urls.forEach(u => {
+          const fid = extractDriveFileId(u);
+          if (fid) {
+            try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {}
+          }
+        });
+      }
       sheet.deleteRow(i + 1);
       return { status: 'success' };
     }
@@ -528,23 +546,68 @@ function deleteInboundRecord(id) {
 }
 
 /**
- * อัพโหลดไฟล์ Base64 เข้า Google Drive Folder ID: 136nyrJjpEK2vYwaRjGgUwvbxtg5uoLEj
+ * ดึง File ID จาก Google Drive URL
  */
-function uploadBase64FileToDrive(base64DataUrl, fileName, mimeType) {
+function extractDriveFileId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/[-\w]{25,}/);
+  return match ? match[0] : null;
+}
+
+/**
+ * อัพโหลดไฟล์ Base64 เข้า Google Drive (ถ้ามีไฟล์เดิมอยู่จะลบไฟล์เก่าออกก่อน เพื่อไม่ให้มีไฟล์งอกซ้ำในไดรฟ์)
+ */
+function uploadBase64FileToDrive(base64DataUrl, fileName, mimeType, existingFileUrl) {
   try {
-    if (!base64DataUrl || typeof base64DataUrl !== 'string') return '';
+    if (!base64DataUrl || typeof base64DataUrl !== 'string') return existingFileUrl || '';
     const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
     const base64Data = base64DataUrl.includes(',') ? base64DataUrl.split(',')[1] : base64DataUrl;
     const decodedBytes = Utilities.base64Decode(base64Data);
     const blob = Utilities.newBlob(decodedBytes, mimeType || 'application/pdf', fileName);
+
+    // ลบไฟล์เดิมในไดรฟ์ทิ้งก่อน เพื่อให้คงเหลือไฟล์เดียวเสมอ ไม่สร้างไฟล์ขยะเพิ่ม
+    if (existingFileUrl) {
+      const oldId = extractDriveFileId(existingFileUrl);
+      if (oldId) {
+        try {
+          DriveApp.getFileById(oldId).setTrashed(true);
+        } catch (eTrash) {
+          Logger.log('Could not trash old file: ' + eTrash);
+        }
+      }
+    }
 
     const file = folder.createFile(blob);
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
   } catch (err) {
     Logger.log('Drive upload error: ' + err);
-    return '';
+    return existingFileUrl || '';
   }
+}
+
+/**
+ * ฟังก์ชันทำความสะอาดไฟล์ตัวอย่างในไดรฟ์ (ลบเฉพาะไฟล์ที่ขึ้นต้นด้วย 'หนังสือราชการ_ตัวอย่าง_')
+ * สามารถเลือกชื่อฟังก์ชันนี้แล้วกดปุ่ม "▷ Run" ได้
+ */
+function cleanUpSampleDriveFiles() {
+  Logger.log("เริ่มต้นตรวจสอบและทำความสะอาดไฟล์ตัวอย่างใน Google Drive...");
+  const folder = DriveApp.getFolderById(CONFIG.DRIVE_FOLDER_ID);
+  const files = folder.getFiles();
+  let count = 0;
+
+  while (files.hasNext()) {
+    const file = files.next();
+    const name = file.getName();
+    if (name.includes('หนังสือราชการ_ตัวอย่าง_') || name.includes('ตัวอย่าง_')) {
+      Logger.log("ลบไฟล์ตัวอย่าง: " + name);
+      file.setTrashed(true);
+      count++;
+    }
+  }
+
+  Logger.log("ทำความสะอาดเสร็จสิ้น! ลบไฟล์ตัวอย่างไป " + count + " ไฟล์");
+  return { status: 'success', deletedCount: count };
 }
 
 /**
@@ -597,6 +660,13 @@ function deleteOutboundRecord(id) {
   const rows = sheet.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(id)) {
+      const fileUrl = rows[i][8] || '';
+      if (fileUrl) {
+        const fid = extractDriveFileId(fileUrl);
+        if (fid) {
+          try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {}
+        }
+      }
       sheet.deleteRow(i + 1);
       return { status: 'success' };
     }
@@ -653,6 +723,13 @@ function deleteOrderRecord(id) {
   const rows = sheet.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) {
     if (String(rows[i][0]) === String(id)) {
+      const fileUrl = rows[i][7] || '';
+      if (fileUrl) {
+        const fid = extractDriveFileId(fileUrl);
+        if (fid) {
+          try { DriveApp.getFileById(fid).setTrashed(true); } catch (e) {}
+        }
+      }
       sheet.deleteRow(i + 1);
       return { status: 'success' };
     }
