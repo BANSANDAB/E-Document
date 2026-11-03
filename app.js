@@ -21,8 +21,8 @@ const AppState = {
   currentDocId: null, // Active document being stamped
   activeViewFileIndex: 0,
   activeTab: 'receive', // 'receive' | 'pending' | 'search' | 'settings'
-  showAllInbound: true, // Default show all items from database
-  showAllPending: true, // Default show all items from database
+  showAllInbound: false, // Default show 5 latest items
+  showAllPending: false, // Default show 5 latest items
 
   // Main Section Navigation (Left Sidebar)
   currentMainSection: 'receive', // 'receive' | 'outbound' | 'order'
@@ -1059,7 +1059,10 @@ async function saveInboundDocument(e) {
     });
 
     let primaryStampedDataUrl = null;
-    const stamp1Pos = getStampPositionValues('inbound');
+    const stamp1Pos = AppState.inboundCustomPos || {
+      ...getStampPositionValues('inbound'),
+      scale: AppState.inboundStampScale || 1.0
+    };
 
     // 2. Stamp immediately onto primary document
     if (primaryFile.type === 'application/pdf') {
@@ -1129,6 +1132,14 @@ async function saveInboundDocument(e) {
     bookNoInput.value = '';
     docTitleInput.value = '';
     clearSelectedFiles();
+    AppState.inboundCustomPos = null;
+    const posBadge = document.getElementById('inboundPosBadge');
+    if (posBadge) {
+      posBadge.textContent = '📍 ขวาบน';
+      posBadge.className = 'badge badge-info';
+      posBadge.style.background = '';
+      posBadge.style.color = '';
+    }
     setReceiveDateToToday();
     updateLatestBookNoPlaceholder();
 
@@ -1200,6 +1211,8 @@ function renderInboundTable() {
   const toggleBtn = document.getElementById('btnToggleInboundShowAll');
   if (!tbody) return;
 
+  const limit = 5;
+
   if (AppState.records.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -1214,8 +1227,8 @@ function renderInboundTable() {
     return;
   }
 
-  // Show all items by default to strictly adhere to database
-  const displayRecords = AppState.showAllInbound ? AppState.records : AppState.records.slice(0, 15);
+  // Show 5 items by default or all if toggled
+  const displayRecords = AppState.showAllInbound ? AppState.records : AppState.records.slice(0, limit);
 
   tbody.innerHTML = displayRecords.map((r, i) => `
     <tr>
@@ -1253,7 +1266,7 @@ function renderInboundTable() {
       if (!AppState.showAllInbound) {
         toggleBtn.innerHTML = `<i class="fa-solid fa-angles-down"></i> เพิ่มเติม (ดูทั้งหมด ${AppState.records.length} รายการ)`;
       } else {
-        toggleBtn.innerHTML = `<i class="fa-solid fa-angles-up"></i> ย่อลง (แสดง 5 รายการล่าสุด)`;
+        toggleBtn.innerHTML = `<i class="fa-solid fa-angles-up"></i> ย่อลง (แสดง ${limit} รายการล่าสุด)`;
       }
     } else {
       toggleBtn.style.display = 'none';
@@ -1273,6 +1286,8 @@ function renderPendingTable() {
   const toggleBtn = document.getElementById('btnTogglePendingShowAll');
   if (!tbody) return;
 
+  const limit = 5;
+
   if (AppState.records.length === 0) {
     tbody.innerHTML = `
       <tr>
@@ -1287,8 +1302,8 @@ function renderPendingTable() {
     return;
   }
 
-  // Show all items by default to strictly adhere to database
-  const displayRecords = AppState.showAllPending ? AppState.records : AppState.records.slice(0, 15);
+  // Show 5 items by default or all if toggled
+  const displayRecords = AppState.showAllPending ? AppState.records : AppState.records.slice(0, limit);
 
   tbody.innerHTML = displayRecords.map((r, i) => {
     const isCompleted = r.status === 'เสร็จสิ้น';
@@ -1351,7 +1366,7 @@ function renderPendingTable() {
       if (!AppState.showAllPending) {
         toggleBtn.innerHTML = `<i class="fa-solid fa-angles-down"></i> เพิ่มเติม (ดูทั้งหมด ${AppState.records.length} รายการ)`;
       } else {
-        toggleBtn.innerHTML = `<i class="fa-solid fa-angles-up"></i> ย่อลง (แสดง 5 รายการล่าสุด)`;
+        toggleBtn.innerHTML = `<i class="fa-solid fa-angles-up"></i> ย่อลง (แสดง ${limit} รายการล่าสุด)`;
       }
     } else {
       toggleBtn.style.display = 'none';
@@ -1723,7 +1738,8 @@ async function handleSaveProposal() {
 
     // 2. Re-stamp Document with Stamp 1 and Stamp 2 (with user-defined positions)
     const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
-    const stamp2Pos = getStampPositionValues('proposal');
+    const stamp2Pos = doc.proposalCustomPos || doc.stamp2Pos || getStampPositionValues('proposal');
+    doc.stamp2Pos = stamp2Pos;
 
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
@@ -2048,7 +2064,8 @@ async function handleSaveDirectorComment() {
     // 2. Composite all stamps onto document (with user-defined positions)
     const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
     const stamp2Pos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
-    const stamp3Pos = getStampPositionValues('director');
+    const stamp3Pos = doc.directorCustomPos || doc.stamp3Pos || getStampPositionValues('director');
+    doc.stamp3Pos = stamp3Pos;
 
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
@@ -2149,6 +2166,29 @@ function adjustSigScale(type, delta) {
   }
 }
 
+// Helpers for stamp scaling (ปรับขนาดตราปั๊มตอนลงนาม)
+function onStampScaleChange(type, val) {
+  const scale = Math.max(0.7, Math.min(1.8, parseFloat(val) || 1.0));
+  if (type === 'proposal') {
+    const txt = document.getElementById('propStampScaleVal');
+    if (txt) txt.textContent = Math.round(scale * 100) + '%';
+  } else if (type === 'director') {
+    const txt = document.getElementById('dirStampScaleVal');
+    if (txt) txt.textContent = Math.round(scale * 100) + '%';
+  }
+}
+
+function adjustStampScale(type, delta) {
+  const inputId = (type === 'proposal') ? 'propStampScale' : 'dirStampScale';
+  const el = document.getElementById(inputId);
+  if (el) {
+    let cur = parseFloat(el.value) || 1.0;
+    cur = Math.max(0.7, Math.min(1.8, Math.round((cur + delta) * 20) / 20));
+    el.value = cur;
+    onStampScaleChange(type, cur);
+  }
+}
+
 /* ==========================================================================
    Stamp Position & Locator Management (ปรับตำแหน่งตราปั๊ม และผังจำลองหน้าเอกสาร)
    ========================================================================== */
@@ -2158,12 +2198,14 @@ function getStampPositionValues(type) {
     const preset = document.getElementById('propStampPreset')?.value || 'bottom-left';
     const offsetX = Number(document.getElementById('propStampOffsetX')?.value || 0);
     const offsetY = Number(document.getElementById('propStampOffsetY')?.value || 0);
-    return { preset, offsetX, offsetY };
+    const scale = Number(document.getElementById('propStampScale')?.value || 1.0);
+    return { preset, offsetX, offsetY, scale };
   } else if (type === 'director') {
     const preset = document.getElementById('dirStampPreset')?.value || 'bottom-right';
     const offsetX = Number(document.getElementById('dirStampOffsetX')?.value || 0);
     const offsetY = Number(document.getElementById('dirStampOffsetY')?.value || 0);
-    return { preset, offsetX, offsetY };
+    const scale = Number(document.getElementById('dirStampScale')?.value || 1.0);
+    return { preset, offsetX, offsetY, scale };
   } else if (type === 'inbound') {
     const preset = document.getElementById('inboundStampPreset')?.value || 'top-right';
     const offsetX = Number(document.getElementById('inboundStampOffsetX')?.value || 0);
@@ -2178,6 +2220,7 @@ function setStampPositionValues(type, pos = {}) {
   const preset = pos.preset || defaultPreset;
   const offsetX = Number(pos.offsetX) || 0;
   const offsetY = Number(pos.offsetY) || 0;
+  const scale = (typeof pos.scale === 'number') ? pos.scale : 1.0;
 
   if (type === 'proposal') {
     const presetEl = document.getElementById('propStampPreset');
@@ -2190,6 +2233,10 @@ function setStampPositionValues(type, pos = {}) {
     if (xVal) xVal.textContent = (offsetX >= 0 ? '+' : '') + offsetX + ' pt';
     const yVal = document.getElementById('propStampOffsetYVal');
     if (yVal) yVal.textContent = (offsetY >= 0 ? '+' : '') + offsetY + ' pt';
+    const scaleEl = document.getElementById('propStampScale');
+    if (scaleEl) scaleEl.value = scale;
+    const scaleVal = document.getElementById('propStampScaleVal');
+    if (scaleVal) scaleVal.textContent = Math.round(scale * 100) + '%';
   } else if (type === 'director') {
     const presetEl = document.getElementById('dirStampPreset');
     if (presetEl) presetEl.value = preset;
@@ -2201,6 +2248,10 @@ function setStampPositionValues(type, pos = {}) {
     if (xVal) xVal.textContent = (offsetX >= 0 ? '+' : '') + offsetX + ' pt';
     const yVal = document.getElementById('dirStampOffsetYVal');
     if (yVal) yVal.textContent = (offsetY >= 0 ? '+' : '') + offsetY + ' pt';
+    const scaleEl = document.getElementById('dirStampScale');
+    if (scaleEl) scaleEl.value = scale;
+    const scaleVal = document.getElementById('dirStampScaleVal');
+    if (scaleVal) scaleVal.textContent = Math.round(scale * 100) + '%';
   } else if (type === 'inbound') {
     const presetEl = document.getElementById('inboundStampPreset');
     if (presetEl) presetEl.value = preset;
@@ -2354,6 +2405,846 @@ function handleLocatorMockupClick(event, type) {
   }
 
   setStampPositionValues(type, { preset, offsetX: 0, offsetY: 0 });
+}
+
+// Inbound Stamp Scale Helpers (ย่อ-ขยายตราปั๊มรับเข้า)
+function onInboundScaleInput(val) {
+  const scale = Math.max(0.5, Math.min(2.0, parseFloat(val) || 1.0));
+  AppState.inboundStampScale = scale;
+  const txt = document.getElementById('inboundStampScaleText');
+  if (txt) txt.textContent = Math.round(scale * 100) + '%';
+  if (AppState.inboundCustomPos) {
+    AppState.inboundCustomPos.scale = scale;
+  }
+}
+
+function adjustInboundScale(delta) {
+  const slider = document.getElementById('inboundStampScale');
+  if (slider) {
+    let cur = parseFloat(slider.value) || 1.0;
+    cur = Math.max(0.5, Math.min(2.0, Math.round((cur + delta) * 20) / 20));
+    slider.value = cur;
+    onInboundScaleInput(cur);
+  }
+}
+
+/* ==========================================================================
+   Interactive Document Stamp & Sign Position Selector
+   (เปิดตัวเอกสารจากไฟล์แนบขึ้นมาให้คลิกหรือลากวางตำแหน่งตราปั๊มได้แม่นยำ
+    รองรับ: ย่อ-ขยายตราปั๊ม, ปั๊มมากกว่า 1 หน้า, ปั๊มทุกหน้า, ปั๊มหลายจุด)
+   ========================================================================== */
+const ActivePositionPicker = {
+  type: 'inbound', // 'inbound' | 'proposal' | 'director'
+  currentDoc: null,
+  canvasWidth: 0,
+  canvasHeight: 0,
+  stampWidth: 0,
+  stampHeight: 0,
+  percentX: 0.60,
+  percentY: 0.03,
+  scale: 1.0,
+  currentPage: 1,
+  totalPages: 1,
+  pdfDoc: null,
+  pageScope: 'single', // 'single' | 'all' | 'custom_pages'
+  customPages: [], // [1, 2, ...]
+  placements: [], // [ { id, page, percentX, percentY, scale } ]
+  activePlacementIdx: 0,
+  isDragging: false,
+  dragStartX: 0,
+  dragStartY: 0,
+  stampStartLeft: 0,
+  stampStartTop: 0,
+  listenersAttached: false
+};
+
+async function openDocumentPositionSelector(type = 'inbound') {
+  ActivePositionPicker.type = type;
+  ActivePositionPicker.currentPage = 1;
+  ActivePositionPicker.totalPages = 1;
+  ActivePositionPicker.pdfDoc = null;
+  ActivePositionPicker.placements = [];
+  ActivePositionPicker.activePlacementIdx = 0;
+  ActivePositionPicker.customPages = [1];
+  
+  const modal = document.getElementById('stampPositionModal');
+  const titleEl = document.getElementById('stampPositionModalTitle');
+  const labelEl = document.getElementById('floatingStampLabel');
+  const loadingEl = document.getElementById('positionDocLoading');
+  const wrapperEl = document.getElementById('positionDocWrapper');
+  const canvasHolder = document.getElementById('floatingStampCanvasHolder');
+
+  if (!modal || !loadingEl || !wrapperEl) return;
+
+  let targetFile = null;
+  let targetDoc = null;
+  let savedPos = null;
+
+  if (type === 'inbound') {
+    if (!AppState.selectedFiles || AppState.selectedFiles.length === 0) {
+      showToast('กรุณาเลือกไฟล์แนบหนังสือรับก่อนเปิดเลือกตำแหน่ง', 'warning');
+      const fileInput = document.getElementById('docFileInput');
+      if (fileInput) fileInput.click();
+      return;
+    }
+    targetFile = AppState.selectedFiles[0];
+    if (titleEl) titleEl.textContent = 'เลือกตำแหน่งตราปั๊มรับเข้า บนหน้าเอกสารแนบจริง (ปรับย่อ-ขยายและเลือกหน้าได้)';
+    if (labelEl) labelEl.textContent = 'ตราปั๊มรับเข้า';
+    savedPos = AppState.inboundCustomPos;
+    ActivePositionPicker.scale = AppState.inboundStampScale || 1.0;
+
+  } else if (type === 'proposal') {
+    targetDoc = AppState.records.find(r => r.id === AppState.currentDocId);
+    if (!targetDoc) {
+      showToast('ไม่พบข้อมูลเอกสารสำหรับเสนอ ผอ.', 'warning');
+      return;
+    }
+    targetFile = {
+      type: targetDoc.fileType,
+      bytes: null,
+      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl
+    };
+    if (titleEl) titleEl.textContent = 'เลือกตำแหน่งตราเสนอ ผอ. บนหน้าเอกสารจริง (ปรับย่อ-ขยายและเลือกหน้าได้)';
+    if (labelEl) labelEl.textContent = 'บันทึกเสนอ ผอ.';
+    savedPos = targetDoc.proposalCustomPos || targetDoc.stamp2Pos;
+    ActivePositionPicker.scale = Number(document.getElementById('propStampScale')?.value || 1.0);
+
+  } else if (type === 'director') {
+    targetDoc = AppState.records.find(r => r.id === AppState.currentDocId);
+    if (!targetDoc) {
+      showToast('ไม่พบข้อมูลเอกสารสำหรับสั่งการ ผอ.', 'warning');
+      return;
+    }
+    targetFile = {
+      type: targetDoc.fileType,
+      bytes: null,
+      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl
+    };
+    if (titleEl) titleEl.textContent = 'เลือกตำแหน่งตราสั่งการและลงนาม ผอ. บนหน้าเอกสารจริง (ปรับย่อ-ขยายและเลือกหน้าได้)';
+    if (labelEl) labelEl.textContent = 'คำสั่งการ/ลงนาม ผอ.';
+    savedPos = targetDoc.directorCustomPos || targetDoc.stamp3Pos;
+    ActivePositionPicker.scale = Number(document.getElementById('dirStampScale')?.value || 1.0);
+  }
+
+  ActivePositionPicker.currentDoc = targetDoc;
+
+  // Restore saved positions/placements if available
+  if (savedPos && Array.isArray(savedPos.placements) && savedPos.placements.length > 0) {
+    ActivePositionPicker.placements = JSON.parse(JSON.stringify(savedPos.placements));
+    ActivePositionPicker.activePlacementIdx = 0;
+    const firstP = ActivePositionPicker.placements[0];
+    ActivePositionPicker.currentPage = firstP.page || 1;
+    ActivePositionPicker.percentX = firstP.percentX;
+    ActivePositionPicker.percentY = firstP.percentY;
+    if (typeof firstP.scale === 'number') ActivePositionPicker.scale = firstP.scale;
+    ActivePositionPicker.pageScope = 'custom_pages';
+  } else if (savedPos && (savedPos.pages === 'all' || savedPos.targetScope === 'all')) {
+    ActivePositionPicker.pageScope = 'all';
+    ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
+    ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
+    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+  } else if (savedPos && Array.isArray(savedPos.pages) && savedPos.pages.length > 0) {
+    ActivePositionPicker.pageScope = 'custom_pages';
+    ActivePositionPicker.customPages = [...savedPos.pages];
+    ActivePositionPicker.currentPage = savedPos.pages[0] || 1;
+    ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
+    ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
+    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+  } else if (savedPos && typeof savedPos.percentX === 'number') {
+    ActivePositionPicker.pageScope = 'single';
+    ActivePositionPicker.currentPage = Number(savedPos.page) || 1;
+    ActivePositionPicker.percentX = savedPos.percentX;
+    ActivePositionPicker.percentY = savedPos.percentY;
+    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+  } else {
+    ActivePositionPicker.pageScope = 'single';
+    ActivePositionPicker.currentPage = 1;
+    ActivePositionPicker.percentX = (type === 'inbound') ? 0.60 : (type === 'proposal' ? 0.05 : 0.58);
+    ActivePositionPicker.percentY = (type === 'inbound') ? 0.03 : 0.60;
+  }
+
+  // Update UI Scope dropdown & Scale slider
+  const scopeSelect = document.getElementById('posPageScopeSelect');
+  if (scopeSelect) scopeSelect.value = ActivePositionPicker.pageScope;
+  syncScaleSliderUI(ActivePositionPicker.scale);
+
+  const customBar = document.getElementById('posCustomPagesBar');
+  if (customBar) customBar.style.display = (ActivePositionPicker.pageScope === 'custom_pages') ? 'flex' : 'none';
+
+  // Open modal
+  openModal('stampPositionModal');
+  loadingEl.style.display = 'block';
+  wrapperEl.style.display = 'none';
+
+  // Render the Stamp Canvas for floating preview
+  let stampCanvas = null;
+  try {
+    if (type === 'inbound') {
+      const bookNo = (document.getElementById('bookNo')?.value || '').trim() || '0001/2569';
+      const receiveDate = (document.getElementById('receiveDate')?.value || '').trim() || ThaiDateUtil.formatDateBE(new Date());
+      const receiveTime = (document.getElementById('receiveTime')?.value || '').trim() || ThaiDateUtil.formatTime(new Date());
+      const s1 = await StampEngine.renderStamp1Canvas({ bookNo, receiveDate, receiveTime });
+      stampCanvas = s1.canvas;
+    } else if (type === 'proposal') {
+      const checkboxes = {
+        toKnow: document.getElementById('prop_toKnow')?.checked || false,
+        toAct: document.getElementById('prop_toAct')?.checked || false,
+        toConsider: document.getElementById('prop_toConsider')?.checked || false,
+        toComply: document.getElementById('prop_toComply')?.checked || false,
+        toNotify: document.getElementById('prop_toNotify')?.checked || false
+      };
+      const note = (document.getElementById('prop_note')?.value || '').trim();
+      const date = (document.getElementById('prop_date')?.value || '').trim();
+      const signatureDataUrl = (AppState.sigPadProposal && !AppState.sigPadProposal.isEmpty()) ? AppState.sigPadProposal.toDataUrl() : null;
+      const signatureScale = AppState.sigScaleProposal || 1.0;
+      const s2 = await StampEngine.renderStamp2Canvas({
+        checkboxes,
+        note,
+        signatureDataUrl,
+        signatureScale,
+        date
+      });
+      stampCanvas = s2.canvas;
+    } else if (type === 'director') {
+      const checkboxes = {
+        ack: document.getElementById('dir_ack')?.checked || false,
+        follow: document.getElementById('dir_follow')?.checked || false,
+        agree: document.getElementById('dir_agree')?.checked || false,
+        approve: document.getElementById('dir_approve')?.checked || false
+      };
+      const comment = (document.getElementById('dir_comment')?.value || '').trim();
+      const directorName = (document.getElementById('dir_name')?.value || '').trim() || 'นายกฤษฎา ผลพล';
+      const date = (document.getElementById('dir_date')?.value || '').trim();
+      const assignee = (document.getElementById('directorAssignee')?.value || '').trim();
+      const signatureDataUrl = (AppState.sigPadDirector && !AppState.sigPadDirector.isEmpty()) ? AppState.sigPadDirector.toDataUrl() : null;
+      const signatureScale = AppState.sigScaleDirector || 1.0;
+      const s3 = await StampEngine.renderStamp3Canvas({
+        checkboxes,
+        comment,
+        directorName,
+        date,
+        assignee,
+        signatureDataUrl,
+        signatureScale
+      });
+      stampCanvas = s3.canvas;
+    }
+  } catch (errStamp) {
+    console.warn('Error rendering preview stamp canvas:', errStamp);
+  }
+
+  if (canvasHolder && stampCanvas) {
+    canvasHolder.innerHTML = '';
+    canvasHolder.appendChild(stampCanvas);
+  }
+
+  // Render the document page
+  try {
+    const docCanvas = document.getElementById('positionDocCanvas');
+    if (!docCanvas) throw new Error('ไม่พบ Canvas แสดงเอกสาร');
+
+    const viewportContainer = document.getElementById('positionModalViewport');
+    const availableW = viewportContainer ? (viewportContainer.clientWidth - 48) : 650;
+    const targetWidth = Math.max(380, Math.min(650, availableW));
+
+    if (targetFile.type === 'application/pdf') {
+      let pdfSource = targetFile.bytes;
+      if (!pdfSource && targetFile.dataUrl) {
+        pdfSource = await dataUrlToBytes(targetFile.dataUrl);
+      }
+      if (!pdfSource) throw new Error('ไม่พบข้อมูลไฟล์ PDF สำหรับแสดงตัวอย่าง');
+
+      if (!window.pdfjsLib) {
+        throw new Error('ระบบกำลังโหลดตัวแปลงเอกสาร PDF กรุณาลองใหม่อีกครั้ง');
+      }
+
+      const loadingTask = window.pdfjsLib.getDocument({
+        data: pdfSource,
+        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/cmaps/',
+        cMapPacked: true
+      });
+      const pdf = await loadingTask.promise;
+      ActivePositionPicker.pdfDoc = pdf;
+      ActivePositionPicker.totalPages = pdf.numPages || 1;
+
+      // Populate Page Select Dropdown
+      const pageSelect = document.getElementById('posPageSelect');
+      const totalPagesEl = document.getElementById('posTotalPages');
+      if (pageSelect) {
+        pageSelect.innerHTML = Array.from({ length: ActivePositionPicker.totalPages }, (_, i) => 
+          `<option value="${i + 1}">หน้า ${i + 1}</option>`
+        ).join('');
+      }
+      if (totalPagesEl) totalPagesEl.textContent = ActivePositionPicker.totalPages;
+
+      renderCustomPagesCheckboxes();
+
+      // Render the designated page
+      await renderPositionModalPage(ActivePositionPicker.currentPage || 1);
+
+    } else {
+      // Image document (Single page)
+      ActivePositionPicker.pdfDoc = null;
+      ActivePositionPicker.totalPages = 1;
+      ActivePositionPicker.currentPage = 1;
+
+      const pageSelect = document.getElementById('posPageSelect');
+      const totalPagesEl = document.getElementById('posTotalPages');
+      if (pageSelect) pageSelect.innerHTML = '<option value="1">หน้า 1</option>';
+      if (totalPagesEl) totalPagesEl.textContent = '1';
+
+      const prevBtn = document.getElementById('btnPosPrevPage');
+      const nextBtn = document.getElementById('btnPosNextPage');
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = targetFile.dataUrl;
+      });
+
+      const scale = targetWidth / (img.naturalWidth || 600);
+      docCanvas.width = targetWidth;
+      docCanvas.height = (img.naturalHeight || 800) * scale;
+      const ctx = docCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, docCanvas.width, docCanvas.height);
+
+      ActivePositionPicker.canvasWidth = docCanvas.width;
+      ActivePositionPicker.canvasHeight = docCanvas.height;
+    }
+
+    // Update stamp sizing with scale factor
+    updatePositionModalStampDimensions();
+    updatePlacementsBarUI();
+
+    loadingEl.style.display = 'none';
+    wrapperEl.style.display = 'block';
+
+    updatePositionModalStampCoordinates();
+    initPositionModalListeners();
+
+  } catch (err) {
+    console.error('Error rendering document in position modal:', err);
+    loadingEl.innerHTML = `
+      <div style="color: #fca5a5; padding: 20px; text-align: center;">
+        <i class="fa-solid fa-triangle-exclamation" style="font-size: 32px; margin-bottom: 8px;"></i>
+        <p style="font-size: 14px; margin: 0;">ไม่สามารถเปิดหน้าเอกสารได้: ${escapeHtml(err.message)}</p>
+        <button type="button" class="btn btn-outline btn-sm" onclick="closeModal('stampPositionModal')" style="margin-top: 12px; color: #fff; border-color: #fff;">ปิดหน้าต่าง</button>
+      </div>
+    `;
+  }
+}
+
+async function changePositionModalPage(deltaOrTarget) {
+  if (!ActivePositionPicker.pdfDoc) return;
+  let targetPage;
+  if (typeof deltaOrTarget === 'number') {
+    if (deltaOrTarget === 1 || deltaOrTarget === -1) {
+      targetPage = ActivePositionPicker.currentPage + deltaOrTarget;
+    } else {
+      targetPage = deltaOrTarget;
+    }
+  } else {
+    targetPage = parseInt(deltaOrTarget, 10);
+  }
+
+  if (isNaN(targetPage) || targetPage < 1 || targetPage > ActivePositionPicker.totalPages) return;
+  await renderPositionModalPage(targetPage);
+}
+
+async function onPositionPageSelectChange(val) {
+  await changePositionModalPage(parseInt(val, 10));
+}
+
+async function renderPositionModalPage(pageNum) {
+  if (!ActivePositionPicker.pdfDoc) return;
+  ActivePositionPicker.currentPage = pageNum;
+
+  const docCanvas = document.getElementById('positionDocCanvas');
+  const viewportContainer = document.getElementById('positionModalViewport');
+  const availableW = viewportContainer ? (viewportContainer.clientWidth - 48) : 650;
+  const targetWidth = Math.max(380, Math.min(650, availableW));
+
+  const page = await ActivePositionPicker.pdfDoc.getPage(pageNum);
+  const unscaledViewport = page.getViewport({ scale: 1 });
+  const scale = targetWidth / unscaledViewport.width;
+  const viewport = page.getViewport({ scale });
+
+  docCanvas.width = viewport.width;
+  docCanvas.height = viewport.height;
+  const ctx = docCanvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport }).promise;
+
+  ActivePositionPicker.canvasWidth = viewport.width;
+  ActivePositionPicker.canvasHeight = viewport.height;
+
+  // Update Page Navigation Buttons & Select
+  const prevBtn = document.getElementById('btnPosPrevPage');
+  const nextBtn = document.getElementById('btnPosNextPage');
+  const pageSelect = document.getElementById('posPageSelect');
+  const totalPagesEl = document.getElementById('posTotalPages');
+
+  if (prevBtn) prevBtn.disabled = (pageNum <= 1);
+  if (nextBtn) nextBtn.disabled = (pageNum >= ActivePositionPicker.totalPages);
+  if (pageSelect) pageSelect.value = String(pageNum);
+  if (totalPagesEl) totalPagesEl.textContent = ActivePositionPicker.totalPages;
+
+  syncPlacementForCurrentPage();
+  updatePositionModalStampCoordinates();
+}
+
+function onPositionPageScopeChange(scope) {
+  ActivePositionPicker.pageScope = scope;
+  const customBar = document.getElementById('posCustomPagesBar');
+  if (customBar) {
+    if (scope === 'custom_pages') {
+      customBar.style.display = 'flex';
+      renderCustomPagesCheckboxes();
+    } else {
+      customBar.style.display = 'none';
+    }
+  }
+  updatePositionModalStampCoordinates();
+}
+
+function renderCustomPagesCheckboxes() {
+  const boxHolder = document.getElementById('posCustomPagesCheckboxes');
+  if (!boxHolder) return;
+  const total = ActivePositionPicker.totalPages || 1;
+  let html = '';
+  for (let i = 1; i <= total; i++) {
+    const checked = ActivePositionPicker.customPages.includes(i) || i === 1;
+    html += `
+      <label style="display:inline-flex; align-items:center; gap:3px; background:#fff; padding:2px 7px; border-radius:3px; border:1px solid #93c5fd; cursor:pointer; font-weight:500;">
+        <input type="checkbox" value="${i}" ${checked ? 'checked' : ''} onchange="toggleCustomPageSelection(${i}, this.checked)">
+        หน้า ${i}
+      </label>
+    `;
+  }
+  boxHolder.innerHTML = html;
+  if (ActivePositionPicker.customPages.length === 0) {
+    ActivePositionPicker.customPages = [1];
+  }
+}
+
+function toggleCustomPageSelection(pageNum, isChecked) {
+  if (isChecked) {
+    if (!ActivePositionPicker.customPages.includes(pageNum)) {
+      ActivePositionPicker.customPages.push(pageNum);
+    }
+  } else {
+    ActivePositionPicker.customPages = ActivePositionPicker.customPages.filter(p => p !== pageNum);
+  }
+  updatePositionModalStampCoordinates();
+}
+
+function onPositionModalScaleInput(val) {
+  const scale = Math.max(0.5, Math.min(2.0, parseFloat(val) || 1.0));
+  ActivePositionPicker.scale = scale;
+  syncScaleSliderUI(scale);
+  updatePositionModalStampDimensions();
+  saveCurrentToActivePlacement();
+}
+
+function adjustPositionModalScale(delta) {
+  let cur = ActivePositionPicker.scale || 1.0;
+  cur = Math.max(0.5, Math.min(2.0, Math.round((cur + delta) * 20) / 20));
+  onPositionModalScaleInput(cur);
+}
+
+function setPositionModalQuickScale(scale) {
+  onPositionModalScaleInput(scale);
+}
+
+function syncScaleSliderUI(scale) {
+  const slider = document.getElementById('posStampScaleSlider');
+  const txt = document.getElementById('posStampScaleVal');
+  if (slider) slider.value = scale;
+  if (txt) txt.textContent = Math.round(scale * 100) + '%';
+}
+
+function updatePositionModalStampDimensions() {
+  const stampEl = document.getElementById('positionFloatingStamp');
+  if (!stampEl || !ActivePositionPicker.canvasWidth) return;
+
+  const type = ActivePositionPicker.type;
+  const basePercent = (type === 'inbound') ? 0.38 : 0.44;
+  const scale = ActivePositionPicker.scale || 1.0;
+  const computedStampW = Math.max(120, ActivePositionPicker.canvasWidth * basePercent * scale);
+
+  stampEl.style.width = computedStampW + 'px';
+  ActivePositionPicker.stampWidth = computedStampW;
+  const ratio = (type === 'director') ? (972 / 1619) : (887 / 1774);
+  ActivePositionPicker.stampHeight = computedStampW * ratio + 18;
+
+  updatePositionModalStampCoordinates();
+}
+
+function syncPlacementForCurrentPage() {
+  if (ActivePositionPicker.placements.length > 0) {
+    const curPage = ActivePositionPicker.currentPage;
+    const foundIdx = ActivePositionPicker.placements.findIndex(p => p.page === curPage);
+    if (foundIdx !== -1) {
+      ActivePositionPicker.activePlacementIdx = foundIdx;
+      const p = ActivePositionPicker.placements[foundIdx];
+      ActivePositionPicker.percentX = p.percentX;
+      ActivePositionPicker.percentY = p.percentY;
+      if (typeof p.scale === 'number') {
+        ActivePositionPicker.scale = p.scale;
+        syncScaleSliderUI(p.scale);
+      }
+    }
+  }
+  updatePlacementsBarUI();
+}
+
+function updatePlacementsBarUI() {
+  const container = document.getElementById('posPlacementsBarContainer');
+  const listEl = document.getElementById('posPlacementsList');
+  const delBtn = document.getElementById('btnPosDeletePlacement');
+
+  if (!container || !listEl) return;
+
+  if (ActivePositionPicker.placements.length > 1) {
+    container.style.display = 'flex';
+    if (delBtn) delBtn.style.display = 'inline-flex';
+
+    listEl.innerHTML = ActivePositionPicker.placements.map((p, idx) => {
+      const isActive = idx === ActivePositionPicker.activePlacementIdx;
+      return `
+        <span class="pos-placement-pill ${isActive ? 'active' : ''}" onclick="selectStampPlacement(${idx})">
+          <i class="fa-solid fa-stamp"></i> จุดที่ ${idx + 1} (หน้า ${p.page || 1}) ${Math.round((p.scale || 1) * 100)}%
+        </span>
+      `;
+    }).join('');
+  } else {
+    container.style.display = 'none';
+    if (delBtn) delBtn.style.display = 'none';
+  }
+}
+
+function addNewStampPlacement() {
+  saveCurrentToActivePlacement();
+
+  if (ActivePositionPicker.placements.length === 0) {
+    ActivePositionPicker.placements.push({
+      id: 1,
+      page: ActivePositionPicker.currentPage || 1,
+      percentX: ActivePositionPicker.percentX,
+      percentY: ActivePositionPicker.percentY,
+      scale: ActivePositionPicker.scale || 1.0,
+      preset: 'custom'
+    });
+  }
+
+  const newIdx = ActivePositionPicker.placements.length;
+  const newPlacement = {
+    id: Date.now(),
+    page: ActivePositionPicker.currentPage || 1,
+    percentX: Math.max(0.05, Math.min(0.9, ActivePositionPicker.percentX)),
+    percentY: Math.max(0.05, Math.min(0.85, (ActivePositionPicker.percentY + 0.15) % 0.85)),
+    scale: ActivePositionPicker.scale || 1.0,
+    preset: 'custom'
+  };
+
+  ActivePositionPicker.placements.push(newPlacement);
+  ActivePositionPicker.activePlacementIdx = newIdx;
+  ActivePositionPicker.percentX = newPlacement.percentX;
+  ActivePositionPicker.percentY = newPlacement.percentY;
+
+  updatePlacementsBarUI();
+  updatePositionModalStampCoordinates();
+  showToast(`เพิ่มตำแหน่งตราปั๊มจุดที่ ${newIdx + 1} เรียบร้อยแล้ว (สามารถลากย้ายตำแหน่งและปรับขนาดย่อ-ขยายได้)`, 'success');
+}
+
+function selectStampPlacement(index) {
+  if (index < 0 || index >= ActivePositionPicker.placements.length) return;
+  saveCurrentToActivePlacement();
+
+  ActivePositionPicker.activePlacementIdx = index;
+  const p = ActivePositionPicker.placements[index];
+  ActivePositionPicker.percentX = p.percentX;
+  ActivePositionPicker.percentY = p.percentY;
+  ActivePositionPicker.scale = p.scale || 1.0;
+  syncScaleSliderUI(ActivePositionPicker.scale);
+  updatePositionModalStampDimensions();
+
+  if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
+    renderPositionModalPage(p.page);
+  } else {
+    updatePositionModalStampCoordinates();
+    updatePlacementsBarUI();
+  }
+}
+
+function deleteActiveStampPlacement() {
+  if (ActivePositionPicker.placements.length <= 1) return;
+  const idx = ActivePositionPicker.activePlacementIdx;
+  ActivePositionPicker.placements.splice(idx, 1);
+  ActivePositionPicker.activePlacementIdx = Math.max(0, idx - 1);
+  const p = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+  ActivePositionPicker.percentX = p.percentX;
+  ActivePositionPicker.percentY = p.percentY;
+  ActivePositionPicker.scale = p.scale || 1.0;
+  syncScaleSliderUI(ActivePositionPicker.scale);
+  updatePositionModalStampDimensions();
+
+  if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
+    renderPositionModalPage(p.page);
+  } else {
+    updatePositionModalStampCoordinates();
+    updatePlacementsBarUI();
+  }
+  showToast('ลบจุดปั๊มเรียบร้อยแล้ว', 'info');
+}
+
+function saveCurrentToActivePlacement() {
+  if (ActivePositionPicker.placements.length > 0) {
+    const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+    if (curP) {
+      curP.page = ActivePositionPicker.currentPage;
+      curP.percentX = ActivePositionPicker.percentX;
+      curP.percentY = ActivePositionPicker.percentY;
+      curP.scale = ActivePositionPicker.scale;
+    }
+  }
+}
+
+function updatePositionModalStampCoordinates() {
+  const stampEl = document.getElementById('positionFloatingStamp');
+  const coordsDisplay = document.getElementById('positionCoordsDisplay');
+  if (!stampEl || !ActivePositionPicker.canvasWidth) return;
+
+  const W = ActivePositionPicker.canvasWidth;
+  const H = ActivePositionPicker.canvasHeight;
+  const sW = ActivePositionPicker.stampWidth || (W * 0.36);
+  const sH = ActivePositionPicker.stampHeight || (sW * 0.55);
+
+  const left = Math.max(0, Math.min(W - sW, ActivePositionPicker.percentX * W));
+  const top = Math.max(0, Math.min(H - sH, ActivePositionPicker.percentY * H));
+
+  stampEl.style.left = left + 'px';
+  stampEl.style.top = top + 'px';
+
+  ActivePositionPicker.percentX = left / W;
+  ActivePositionPicker.percentY = top / H;
+
+  saveCurrentToActivePlacement();
+
+  const pctX = Math.round(ActivePositionPicker.percentX * 100);
+  const pctY = Math.round(ActivePositionPicker.percentY * 100);
+  const scalePct = Math.round((ActivePositionPicker.scale || 1.0) * 100);
+
+  let desc = 'กำหนดเอง';
+  if (pctY <= 15 && pctX >= 48) desc = 'ขวาบน';
+  else if (pctY <= 15 && pctX >= 22 && pctX < 48) desc = 'กลางบน';
+  else if (pctY <= 15 && pctX < 22) desc = 'ซ้ายบน';
+  else if (pctY >= 55 && pctX >= 48) desc = 'ขวาล่าง';
+  else if (pctY >= 55 && pctX < 48) desc = 'ซ้ายล่าง';
+
+  let pageText = `หน้า ${ActivePositionPicker.currentPage}`;
+  if (ActivePositionPicker.placements.length > 1) {
+    pageText = `ปั๊ม ${ActivePositionPicker.placements.length} จุด (${ActivePositionPicker.placements.map(p => 'หน้า ' + p.page).join(', ')})`;
+  } else if (ActivePositionPicker.pageScope === 'all') {
+    pageText = `ปั๊มทุกหน้า (1-${ActivePositionPicker.totalPages})`;
+  } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
+    pageText = `ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
+  }
+
+  if (coordsDisplay) {
+    coordsDisplay.textContent = `${pageText} | ตำแหน่ง: X:${pctX}%, Y:${pctY}% (${desc}) | ขนาด: ${scalePct}%`;
+  }
+}
+
+function applyPositionModalPreset(preset) {
+  const W = ActivePositionPicker.canvasWidth || 600;
+  const H = ActivePositionPicker.canvasHeight || 800;
+  const sW = ActivePositionPicker.stampWidth || (W * 0.36);
+  const sH = ActivePositionPicker.stampHeight || (sW * 0.55);
+
+  const marginX = 14;
+  const marginY = 16;
+
+  switch (preset) {
+    case 'top-right':
+      ActivePositionPicker.percentX = (W - sW - marginX) / W;
+      ActivePositionPicker.percentY = marginY / H;
+      break;
+    case 'top-center':
+      ActivePositionPicker.percentX = ((W - sW) / 2) / W;
+      ActivePositionPicker.percentY = marginY / H;
+      break;
+    case 'top-left':
+      ActivePositionPicker.percentX = marginX / W;
+      ActivePositionPicker.percentY = marginY / H;
+      break;
+    case 'bottom-right':
+      ActivePositionPicker.percentX = (W - sW - marginX) / W;
+      ActivePositionPicker.percentY = (H - sH - Math.max(marginY * 2, H * 0.08)) / H;
+      break;
+    case 'bottom-left':
+      ActivePositionPicker.percentX = marginX / W;
+      ActivePositionPicker.percentY = (H - sH - Math.max(marginY * 2, H * 0.08)) / H;
+      break;
+  }
+
+  updatePositionModalStampCoordinates();
+}
+
+function nudgePositionModal(deltaX, deltaY) {
+  ActivePositionPicker.percentX += (deltaX / 100);
+  ActivePositionPicker.percentY += (deltaY / 100);
+  updatePositionModalStampCoordinates();
+}
+
+function confirmPositionModalSelection() {
+  saveCurrentToActivePlacement();
+  const type = ActivePositionPicker.type;
+
+  let posObj = {
+    preset: 'custom',
+    scale: ActivePositionPicker.scale || 1.0,
+    percentX: ActivePositionPicker.percentX,
+    percentY: ActivePositionPicker.percentY
+  };
+
+  let badgeLabel = '📍 กำหนดบนเอกสารแล้ว';
+
+  if (ActivePositionPicker.placements.length > 1) {
+    posObj.placements = ActivePositionPicker.placements.map(p => ({
+      page: p.page,
+      percentX: p.percentX,
+      percentY: p.percentY,
+      scale: p.scale || posObj.scale,
+      preset: 'custom'
+    }));
+    badgeLabel = `📍 ปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(',')})`;
+  } else if (ActivePositionPicker.pageScope === 'all') {
+    posObj.pages = 'all';
+    posObj.targetScope = 'all';
+    badgeLabel = `📍 ปั๊มทุกหน้า (${ActivePositionPicker.totalPages || 1} หน้า)`;
+  } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
+    posObj.pages = [...ActivePositionPicker.customPages];
+    badgeLabel = `📍 ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
+  } else {
+    posObj.page = ActivePositionPicker.currentPage || 1;
+    badgeLabel = `📍 กำหนดบนหน้า ${posObj.page} แล้ว`;
+  }
+
+  if (type === 'inbound') {
+    AppState.inboundCustomPos = posObj;
+    AppState.inboundStampScale = posObj.scale;
+    const badge = document.getElementById('inboundPosBadge');
+    if (badge) {
+      badge.textContent = badgeLabel;
+      badge.className = 'badge badge-success';
+      badge.style.background = '#16a34a';
+      badge.style.color = '#ffffff';
+    }
+    const formScaleSlider = document.getElementById('inboundStampScale');
+    if (formScaleSlider) formScaleSlider.value = posObj.scale;
+    const formScaleTxt = document.getElementById('inboundStampScaleText');
+    if (formScaleTxt) formScaleTxt.textContent = Math.round(posObj.scale * 100) + '%';
+
+    showToast(`บันทึกตำแหน่งตราปั้ม ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+
+  } else if (type === 'proposal') {
+    if (ActivePositionPicker.currentDoc) {
+      ActivePositionPicker.currentDoc.proposalCustomPos = posObj;
+      ActivePositionPicker.currentDoc.stamp2Pos = posObj;
+    }
+    const propScaleEl = document.getElementById('propStampScale');
+    if (propScaleEl) propScaleEl.value = posObj.scale;
+    const propScaleVal = document.getElementById('propStampScaleVal');
+    if (propScaleVal) propScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
+
+    showToast(`กำหนดตำแหน่งตราเสนอ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+
+  } else if (type === 'director') {
+    if (ActivePositionPicker.currentDoc) {
+      ActivePositionPicker.currentDoc.directorCustomPos = posObj;
+      ActivePositionPicker.currentDoc.stamp3Pos = posObj;
+    }
+    const dirScaleEl = document.getElementById('dirStampScale');
+    if (dirScaleEl) dirScaleEl.value = posObj.scale;
+    const dirScaleVal = document.getElementById('dirStampScaleVal');
+    if (dirScaleVal) dirScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
+
+    showToast(`กำหนดตำแหน่งตราสั่งการ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+  }
+
+  closeModal('stampPositionModal');
+}
+
+function initPositionModalListeners() {
+  if (ActivePositionPicker.listenersAttached) return;
+  ActivePositionPicker.listenersAttached = true;
+
+  const wrapper = document.getElementById('positionDocWrapper');
+  const stampEl = document.getElementById('positionFloatingStamp');
+  if (!wrapper || !stampEl) return;
+
+  // Click on document to jump stamp
+  wrapper.addEventListener('click', (e) => {
+    if (e.target === stampEl || stampEl.contains(e.target) || ActivePositionPicker.isDragging) return;
+
+    const rect = wrapper.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const W = ActivePositionPicker.canvasWidth;
+    const H = ActivePositionPicker.canvasHeight;
+    const sW = ActivePositionPicker.stampWidth || (W * 0.36);
+    const sH = ActivePositionPicker.stampHeight || (sW * 0.55);
+
+    const left = Math.max(0, Math.min(W - sW, clickX - (sW / 2)));
+    const top = Math.max(0, Math.min(H - sH, clickY - (sH / 2)));
+
+    ActivePositionPicker.percentX = left / W;
+    ActivePositionPicker.percentY = top / H;
+    updatePositionModalStampCoordinates();
+  });
+
+  // Pointer drag on stamp
+  stampEl.addEventListener('pointerdown', (e) => {
+    ActivePositionPicker.isDragging = true;
+    ActivePositionPicker.dragStartX = e.clientX;
+    ActivePositionPicker.dragStartY = e.clientY;
+    ActivePositionPicker.stampStartLeft = parseFloat(stampEl.style.left) || 0;
+    ActivePositionPicker.stampStartTop = parseFloat(stampEl.style.top) || 0;
+    try { stampEl.setPointerCapture(e.pointerId); } catch (_) {}
+    e.stopPropagation();
+  });
+
+  stampEl.addEventListener('pointermove', (e) => {
+    if (!ActivePositionPicker.isDragging) return;
+    const deltaX = e.clientX - ActivePositionPicker.dragStartX;
+    const deltaY = e.clientY - ActivePositionPicker.dragStartY;
+
+    const W = ActivePositionPicker.canvasWidth;
+    const H = ActivePositionPicker.canvasHeight;
+    const sW = ActivePositionPicker.stampWidth || (W * 0.36);
+    const sH = ActivePositionPicker.stampHeight || (sW * 0.55);
+
+    const newLeft = Math.max(0, Math.min(W - sW, ActivePositionPicker.stampStartLeft + deltaX));
+    const newTop = Math.max(0, Math.min(H - sH, ActivePositionPicker.stampStartTop + deltaY));
+
+    ActivePositionPicker.percentX = newLeft / W;
+    ActivePositionPicker.percentY = newTop / H;
+    updatePositionModalStampCoordinates();
+  });
+
+  const stopDrag = (e) => {
+    if (ActivePositionPicker.isDragging) {
+      ActivePositionPicker.isDragging = false;
+      try { stampEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  };
+
+  stampEl.addEventListener('pointerup', stopDrag);
+  stampEl.addEventListener('pointercancel', stopDrag);
 }
 
 /* ==========================================================================

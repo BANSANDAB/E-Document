@@ -26,8 +26,16 @@
     }
   </script>
 
+  <!-- PDF.js for Client-Side Document Page Rendering & Visual Placement -->
+  <script src="pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdf.worker.min.js';
+    }
+  </script>
+
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25691103_2">
+  <link rel="stylesheet" href="style.css?v=25691103_3">
 </head>
 
 <body>
@@ -210,143 +218,150 @@
             </div>
             <div>
               <h2>แบบฟอร์มลงรับหนังสือราชการ</h2>
-              <p style="font-size: 13px; color: #64748b;">ตราปั้มหนังสือรับจะปรากฏที่มุมบนขวาของไฟล์แนบทันทีหลังกดบันทึก
-              </p>
+              <p style="font-size: 13px; color: #64748b;">ลงรับหนังสือราชการ พร้อมเลือกระบุตำแหน่งตราปั๊มบนหน้าเอกสารแนบจริงได้อย่างอิสระ</p>
             </div>
           </div>
         </div>
 
         <form id="inboundForm" onsubmit="saveInboundDocument(event)">
-          <div class="form-grid-3">
-            <!-- ช่องเลขหนังสือรับ -->
-            <div class="form-group">
-              <label class="form-label" for="bookNo">
-                <i class="fa-solid fa-hashtag text-primary"></i> เลขหนังสือรับ <span class="required">*</span>
-              </label>
-              <div class="input-with-hint">
-                <input type="text" id="bookNo" class="form-control" placeholder="เลขล่าสุด: 0001/2569" required
-                  autocomplete="off" oninput="updateInboundStampPreview()">
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 3px;">
-                <span class="input-hint-badge" id="latestBookNoHint">กำลังตรวจสอบเลขล่าสุด...</span>
-                <button type="button" class="btn-edit-sm" onclick="useNextSequentialBookNo()"
-                  style="padding: 2px 8px; font-size: 11.5px;">
-                  + เลขถัดไป
-                </button>
-              </div>
-            </div>
+          <!-- Screen-Fit Dashboard Grid: Form Inputs (Left) and Stamp Action (Right) -->
+          <div class="inbound-form-compact-grid">
+            <!-- Left: Form Inputs & File Dropzone -->
+            <div class="inbound-inputs-col">
+              <div class="form-grid-3">
+                <!-- ช่องเลขหนังสือรับ -->
+                <div class="form-group">
+                  <label class="form-label" for="bookNo">
+                    <i class="fa-solid fa-hashtag text-primary"></i> เลขหนังสือรับ <span class="required">*</span>
+                  </label>
+                  <div class="input-with-hint">
+                    <input type="text" id="bookNo" class="form-control" placeholder="0001/2569" required
+                      autocomplete="off" oninput="updateInboundStampPreview()">
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                    <span class="input-hint-badge" id="latestBookNoHint">กำลังตรวจ...</span>
+                    <button type="button" class="btn-edit-sm" onclick="useNextSequentialBookNo()"
+                      style="padding: 1px 6px; font-size: 11px;">
+                      + เลขถัดไป
+                    </button>
+                  </div>
+                </div>
 
-            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ. ช่องเดียว พร้อมปุ่มเลือกปฏิทิน) -->
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <label class="form-label" for="receiveDate" style="margin-bottom: 0;">
-                  <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span class="required">*</span>
-                </label>
-                <button type="button" class="btn-edit-sm" onclick="setReceiveDateToToday()" title="ตั้งเป็นวันปัจจุบัน"
-                  style="padding: 1px 8px; font-size: 11px;">
-                  <i class="fa-solid fa-calendar-day"></i> วันนี้
-                </button>
-              </div>
-              <div class="thai-datepicker-container" style="position: relative;">
-                <input type="text" id="receiveDate" class="form-control"
-                  placeholder="วว/ดด/ปปปป (พ.ศ.)"
-                  autocomplete="off"
-                  onclick="ThaiDatePicker.toggle('receiveDate')"
-                  oninput="updateInboundStampPreview()"
-                  style="padding-right: 42px; font-weight: 500; font-size: 13.5px; cursor: pointer; background: #ffffff;"
-                  required>
-                <button type="button" class="calendar-picker-btn" id="btnOpenCalendarReceive"
-                  onclick="ThaiDatePicker.toggle('receiveDate')"
-                  title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
-                  style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s ease;">
-                  <i class="fa-regular fa-calendar-days" style="font-size: 14px;"></i>
-                </button>
-              </div>
-            </div>
+                <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ. ช่องเดียว พร้อมปุ่มเลือกปฏิทิน) -->
+                <div class="form-group">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                    <label class="form-label" for="receiveDate" style="margin-bottom: 0;">
+                      <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span class="required">*</span>
+                    </label>
+                    <button type="button" class="btn-edit-sm" onclick="setReceiveDateToToday()" title="ตั้งเป็นวันปัจจุบัน"
+                      style="padding: 1px 6px; font-size: 11px;">
+                      วันนี้
+                    </button>
+                  </div>
+                  <div class="thai-datepicker-container" style="position: relative;">
+                    <input type="text" id="receiveDate" class="form-control"
+                      placeholder="วว/ดด/ปปปป"
+                      autocomplete="off"
+                      onclick="ThaiDatePicker.toggle('receiveDate')"
+                      oninput="updateInboundStampPreview()"
+                      style="padding-right: 36px; font-weight: 500; font-size: 13px; cursor: pointer; background: #ffffff;"
+                      required>
+                    <button type="button" class="calendar-picker-btn" id="btnOpenCalendarReceive"
+                      onclick="ThaiDatePicker.toggle('receiveDate')"
+                      title="เปิดปฏิทินเลือกวัน/เดือน/ปี"
+                      style="position: absolute; right: 3px; top: 50%; transform: translateY(-50%); background: #eff6ff; border: 1px solid #bfdbfe; color: #2563eb; width: 28px; height: 28px; border-radius: 5px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                      <i class="fa-regular fa-calendar-days" style="font-size: 13px;"></i>
+                    </button>
+                  </div>
+                </div>
 
-            <!-- เวลา (แสดงอัตโนมัติ) -->
-            <div class="form-group">
-              <label class="form-label" for="receiveTime">
-                <i class="fa-regular fa-clock text-primary"></i> เวลา <span class="required">*</span>
-              </label>
-              <input type="text" id="receiveTime" class="form-control" placeholder="16:00 น." required
-                oninput="updateInboundStampPreview()">
-            </div>
-          </div>
-
-          <!-- เรื่อง / จากหน่วยงาน และ ไฟล์แนบหนังสือรับ อยู่แถวเดียวกัน -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; align-items: flex-start;">
-            <div class="form-group">
-              <label class="form-label" for="docTitle">
-                <i class="fa-solid fa-align-left text-primary"></i> เรื่อง / จากหน่วยงาน
-              </label>
-              <textarea id="docTitle" class="form-control" rows="2" style="height: 52px; resize: none; font-size: 13.5px;"
-                placeholder="ระบุเรื่อง หรือหน่วยงานต้นเรื่อง (เช่น จาก สพป.สมุทรสาคร เรื่อง...)"></textarea>
-            </div>
-
-            <div class="form-group">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label class="form-label" style="margin-bottom: 0;">
-                  <i class="fa-solid fa-paperclip text-primary"></i> ไฟล์แนบหนังสือรับ (แนบได้มากกว่า 1 ไฟล์)
-                </label>
-                <span id="fileCountBadge" style="font-size: 11px; color: #2563eb; font-weight: 600;"></span>
-              </div>
-              <div class="file-dropzone" id="fileDropzone" style="padding: 8px 14px; min-height: 52px;">
-                <input type="file" id="docFileInput" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;" multiple>
-                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 22px;"></i>
-                <div>
-                  <p style="font-size: 12.5px; margin: 0;">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (แนบได้หลายไฟล์)</p>
-                  <span style="font-size: 11px;">รองรับ PDF และภาพ (.pdf, .jpg, .png) | ไฟล์แรกคือเอกสารหลักที่ประทับตรา</span>
+                <!-- เวลา (แสดงอัตโนมัติ) -->
+                <div class="form-group">
+                  <label class="form-label" for="receiveTime">
+                    <i class="fa-regular fa-clock text-primary"></i> เวลา <span class="required">*</span>
+                  </label>
+                  <input type="text" id="receiveTime" class="form-control" placeholder="16:00 น." required
+                    oninput="updateInboundStampPreview()">
                 </div>
               </div>
-              <div id="selectedFilePreview"></div>
-            </div>
-          </div>
 
-          <!-- ตัวอย่างตราปั้มหนังสือรับที่จะปรากฏเมื่อกดบันทึก -->
-          <div
-            style="margin-top: 10px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <span style="font-size: 12px; font-weight: 600; color: #1e40af;">
-                <i class="fa-solid fa-stamp text-primary"></i> ภาพตัวอย่างตราปั้มหนังสือรับมุมบนขวา
-                (ปรับขนาดใหญ่ขึ้น ชัดเจน ข้อความอยู่เหนือเส้นจุด)
-              </span>
-            </div>
-            <div id="inboundStampPreviewContainer"
-              style="display: flex; justify-content: center; align-items: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 8px; min-height: 95px;">
-              <!-- Rendered via updateInboundStampPreview() -->
-            </div>
+              <!-- เรื่อง / จากหน่วยงาน -->
+              <div class="form-group" style="margin-top: 6px;">
+                <label class="form-label" for="docTitle">
+                  <i class="fa-solid fa-align-left text-primary"></i> เรื่อง / จากหน่วยงาน
+                </label>
+                <input type="text" id="docTitle" class="form-control"
+                  placeholder="ระบุเรื่อง หรือหน่วยงานต้นเรื่อง (เช่น จาก สพป.สมุทรสาคร เรื่อง...)" style="height: 35px;">
+              </div>
 
-            <!-- ตัวเลือกปรับตำแหน่งตราปั๊มรับเข้า (Stamp 1) -->
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 6px 10px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11.5px;">
-              <span style="color: #475569; font-weight: 500;">
-                <i class="fa-solid fa-crosshairs text-primary"></i> ตำแหน่งตราปั้มรับเข้า:
-              </span>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <select id="inboundStampPreset" class="form-control" style="font-size: 11px; padding: 3px 6px; height: auto;" onchange="onStampPositionChange('inbound')">
-                  <option value="top-right" selected>ขวาบน (ค่าเริ่มต้น)</option>
-                  <option value="top-center">กึ่งกลางบน</option>
-                  <option value="top-left">ซ้ายบน</option>
-                  <option value="bottom-right">ขวาล่าง</option>
-                </select>
-                <div style="display: flex; gap: 3px;">
-                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', -10, 0)" title="เลื่อนซ้าย">◀</button>
-                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 10, 0)" title="เลื่อนขวา">▶</button>
-                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 0, 10)" title="เลื่อนขึ้น">▲</button>
-                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="nudgeStampPosition('inbound', 0, -10)" title="เลื่อนลง">▼</button>
-                  <button type="button" class="nudge-btn" style="width: 22px; height: 22px;" onclick="resetStampPosition('inbound')" title="รีเซ็ต">↺</button>
+              <!-- ไฟล์แนบหนังสือรับ -->
+              <div class="form-group" style="margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <label class="form-label" style="margin-bottom: 0;">
+                    <i class="fa-solid fa-paperclip text-primary"></i> ไฟล์แนบหนังสือรับ (แนบได้มากกว่า 1 ไฟล์)
+                  </label>
+                  <span id="fileCountBadge" style="font-size: 11px; color: #2563eb; font-weight: 600;"></span>
                 </div>
+                <div class="file-dropzone" id="fileDropzone" style="padding: 6px 12px; min-height: 42px;">
+                  <input type="file" id="docFileInput" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;" multiple>
+                  <i class="fa-solid fa-cloud-arrow-up" style="font-size: 20px;"></i>
+                  <div style="display: flex; align-items: center; gap: 8px; flex: 1; justify-content: space-between;">
+                    <div>
+                      <p style="font-size: 12px; margin: 0;">คลิกหรือลากไฟล์มาวางที่นี่ (PDF หรือ รูปภาพ)</p>
+                      <span style="font-size: 10.5px; color: #94a3b8;">ไฟล์แรกคือเอกสารหลักที่จะถูกประทับตรา</span>
+                    </div>
+                    <span class="btn btn-outline btn-sm" style="padding: 2px 8px; font-size: 11px; pointer-events: none;">เลือกไฟล์</span>
+                  </div>
+                </div>
+                <div id="selectedFilePreview"></div>
+              </div>
+            </div>
+
+            <!-- Right: Stamp Preview & Action Card (Compact & Interactive) -->
+            <div class="inbound-stamp-action-col">
+              <div class="stamp-action-card">
+                <div class="stamp-action-card-header">
+                  <span><i class="fa-solid fa-stamp text-primary"></i> ตัวอย่างตราปั้มรับเข้า</span>
+                  <span id="inboundPosBadge" class="badge badge-info" style="font-size: 11px;">📍 ขวาบน</span>
+                </div>
+
+                <!-- Mini Canvas Preview -->
+                <div id="inboundStampPreviewContainer" class="stamp-action-preview-box">
+                  <!-- Rendered via updateInboundStampPreview() -->
+                </div>
+
+                <!-- Scale Adjuster for Inbound Stamp (ย่อ-ขยายตราปั๊ม) -->
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; padding: 4px 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                  <span style="font-size: 11.5px; color: #475569; font-weight: 600;">
+                    <i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ย่อ-ขยายตราปั๊ม:
+                  </span>
+                  <div style="display: flex; align-items: center; gap: 5px;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="adjustInboundScale(-0.05)" style="padding: 1px 7px; font-size: 11px; height: 22px;" title="ลดขนาดตราปั๊ม">-</button>
+                    <input type="range" id="inboundStampScale" min="0.6" max="1.8" step="0.05" value="1.0" oninput="onInboundScaleInput(this.value)" style="width: 70px; cursor: pointer;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="adjustInboundScale(0.05)" style="padding: 1px 7px; font-size: 11px; height: 22px;" title="เพิ่มขนาดตราปั๊ม">+</button>
+                    <span id="inboundStampScaleText" style="font-size: 11.5px; font-weight: 700; color: #2563eb; min-width: 38px; text-align: right;">100%</span>
+                  </div>
+                </div>
+
+                <!-- Action Buttons: Open Document Selector & Submit -->
+                <div class="stamp-action-buttons">
+                  <button type="button" class="btn btn-select-pos" id="btnOpenDocPositionModal" onclick="openDocumentPositionSelector('inbound')" title="เปิดตัวเอกสารจริงขึ้นมาเพื่อคลิกหรือลากวางตำแหน่งตราปั๊ม">
+                    <i class="fa-solid fa-file-circle-check"></i>
+                    <span>เปิดเอกสารเพื่อเลือกตำแหน่งตราปั๊ม</span>
+                  </button>
+
+                  <button type="submit" class="btn btn-primary btn-save-inbound" id="saveInboundBtn">
+                    <i class="fa-solid fa-stamp"></i>
+                    <span>บันทึกข้อมูลและประทับตรา</span>
+                  </button>
+                </div>
+
+                <!-- Hidden inputs for backward compatibility -->
+                <input type="hidden" id="inboundStampPreset" value="top-right">
                 <input type="hidden" id="inboundStampOffsetX" value="0">
                 <input type="hidden" id="inboundStampOffsetY" value="0">
               </div>
             </div>
-          </div>
-
-          <!-- ปุ่มบันทึกข้อมูล -->
-          <div style="margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
-            <button type="submit" class="btn btn-primary" id="saveInboundBtn">
-              <i class="fa-solid fa-stamp"></i> บันทึกข้อมูลและประทับตรา
-            </button>
           </div>
         </form>
       </div>
@@ -924,6 +939,25 @@
                 </div>
               </div>
             </div>
+
+            <!-- ตัวปรับขนาดตราปั๊มเสนอ ผอ. -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 5px 8px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <span style="font-size: 11.5px; font-weight: 600; color: #334155;">
+                <i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ขนาดตราปั๊ม:
+              </span>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustStampScale('proposal', -0.05)" style="padding: 1px 7px; font-size: 11px; height: 24px;" title="ลดขนาดตราปั๊ม">-</button>
+                <input type="range" id="propStampScale" min="0.8" max="1.5" step="0.05" value="1.0" oninput="onStampScaleChange('proposal', this.value)" style="width: 75px; cursor: pointer;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustStampScale('proposal', 0.05)" style="padding: 1px 7px; font-size: 11px; height: 24px;" title="เพิ่มขนาดตราปั๊ม">+</button>
+                <span id="propStampScaleVal" style="font-size: 11.5px; font-weight: 700; color: #1d4ed8; min-width: 38px; text-align: right;">100%</span>
+              </div>
+            </div>
+
+            <!-- ปุ่มเปิดดูหน้าเอกสารจริงเพื่อเลือกลากวางตำแหน่ง -->
+            <button type="button" class="btn btn-select-pos" onclick="openDocumentPositionSelector('proposal')" style="margin-top: 8px; width: 100%;">
+              <i class="fa-solid fa-file-circle-check"></i>
+              <span>เปิดเอกสารจริงเพื่อเลือกลากวางตำแหน่ง</span>
+            </button>
           </div>
         </div>
 
@@ -1021,7 +1055,7 @@
               <div style="display: flex; align-items: center; gap: 8px;">
                 <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('proposal', -0.1)"
                   style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="ลดขนาด">-</button>
-                <input type="range" id="sigScaleProposal" min="0.5" max="1.8" step="0.05" value="1.0"
+                <input type="range" id="sigScaleProposal" min="0.5" max="2.5" step="0.05" value="1.0"
                   oninput="onSigScaleChange('proposal', this.value)" style="width: 100px; cursor: pointer;">
                 <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('proposal', 0.1)"
                   style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="เพิ่มขนาด">+</button>
@@ -1129,6 +1163,25 @@
                 </div>
               </div>
             </div>
+
+            <!-- ตัวปรับขนาดตราปั๊มความเห็น ผอ. -->
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 5px 8px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+              <span style="font-size: 11.5px; font-weight: 600; color: #334155;">
+                <i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ขนาดตราปั๊ม:
+              </span>
+              <div style="display: flex; align-items: center; gap: 5px;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustStampScale('director', -0.05)" style="padding: 1px 7px; font-size: 11px; height: 24px;" title="ลดขนาดตราปั๊ม">-</button>
+                <input type="range" id="dirStampScale" min="0.8" max="1.5" step="0.05" value="1.0" oninput="onStampScaleChange('director', this.value)" style="width: 75px; cursor: pointer;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="adjustStampScale('director', 0.05)" style="padding: 1px 7px; font-size: 11px; height: 24px;" title="เพิ่มขนาดตราปั๊ม">+</button>
+                <span id="dirStampScaleVal" style="font-size: 11.5px; font-weight: 700; color: #1d4ed8; min-width: 38px; text-align: right;">100%</span>
+              </div>
+            </div>
+
+            <!-- ปุ่มเปิดดูหน้าเอกสารจริงเพื่อเลือกลากวางตำแหน่ง -->
+            <button type="button" class="btn btn-select-pos" onclick="openDocumentPositionSelector('director')" style="margin-top: 8px; width: 100%;">
+              <i class="fa-solid fa-file-circle-check"></i>
+              <span>เปิดเอกสารจริงเพื่อเลือกลากวางตำแหน่ง</span>
+            </button>
           </div>
         </div>
 
@@ -1235,7 +1288,7 @@
               <div style="display: flex; align-items: center; gap: 8px;">
                 <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('director', -0.1)"
                   style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="ลดขนาด">-</button>
-                <input type="range" id="sigScaleDirector" min="0.5" max="1.8" step="0.05" value="1.0"
+                <input type="range" id="sigScaleDirector" min="0.5" max="2.5" step="0.05" value="1.0"
                   oninput="onSigScaleChange('director', this.value)" style="width: 100px; cursor: pointer;">
                 <button type="button" class="btn btn-outline btn-sm" onclick="adjustSigScale('director', 0.1)"
                   style="padding: 1px 7px; font-size: 11px; line-height: 1.2;" title="เพิ่มขนาด">+</button>
@@ -1255,6 +1308,162 @@
         <button type="button" class="btn btn-success" id="btnSaveDirector" onclick="handleSaveDirectorComment()">
           <i class="fa-solid fa-check-double"></i> บันทึกความคิดเห็น ผอ. และมอบหมายงาน
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: เลือกตำแหน่งตราประทับบนหน้าเอกสารจริง (Interactive Document Stamp Selector)
+       ======================================================================== -->
+  <div class="modal-overlay" id="stampPositionModal" style="z-index: 10050;">
+    <div class="modal-dialog" style="max-width: 980px; width: 95vw; max-height: 94vh; display: flex; flex-direction: column;">
+      <div class="modal-header" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff; padding: 10px 18px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-crosshairs" style="font-size: 16px; color: #ffffff;"></i>
+          </div>
+          <div>
+            <h3 id="stampPositionModalTitle" style="font-size: 15px; margin: 0; color: #ffffff;">
+              เลือกตำแหน่งตราประทับบนหน้าเอกสารจริง
+            </h3>
+            <p style="font-size: 11.5px; margin: 0; color: #bfdbfe;">
+              คลิกตรงตำแหน่งที่ต้องการบนหน้าเอกสาร หรือลากตราปั๊มวางในจุดที่เหมาะสม (ไม่ให้บังเนื้อหา)
+            </p>
+          </div>
+        </div>
+        <button type="button" class="modal-close" onclick="closeModal('stampPositionModal')" style="color: #ffffff;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Quick Toolbar: Multi-Page Navigation, Stamping Scope, Resizing & Presets -->
+      <div class="position-modal-toolbar">
+        <!-- Row 1: Page Navigation, Stamping Target Scope & Add Extra Stamp -->
+        <div class="position-modal-toolbar-row">
+          <!-- Page Navigation (เปลี่ยนหน้า) -->
+          <div class="position-toolbar-group" id="posPageNavGroup">
+            <span class="position-toolbar-label"><i class="fa-solid fa-file-lines text-primary"></i> หน้า:</span>
+            <button type="button" class="pos-page-btn" id="btnPosPrevPage" onclick="changePositionModalPage(-1)" title="หน้าก่อนหน้า" disabled>
+              <i class="fa-solid fa-chevron-left"></i> ก่อนหน้า
+            </button>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              <select id="posPageSelect" class="pos-page-select" onchange="onPositionPageSelectChange(this.value)">
+                <option value="1">หน้า 1</option>
+              </select>
+              <span style="font-size: 12px; color: #64748b; font-weight: 500;">/ <span id="posTotalPages">1</span></span>
+            </div>
+            <button type="button" class="pos-page-btn" id="btnPosNextPage" onclick="changePositionModalPage(1)" title="หน้าถัดไป" disabled>
+              ถัดไป <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <!-- Stamping Scope (ขอบเขตการปั๊มหน้าเอกสาร) -->
+          <div class="position-toolbar-group">
+            <span class="position-toolbar-label"><i class="fa-solid fa-layer-group text-primary"></i> ขอบเขต:</span>
+            <select id="posPageScopeSelect" class="pos-page-select" onchange="onPositionPageScopeChange(this.value)" style="font-weight: 600;">
+              <option value="single">🎯 ปั๊มเฉพาะหน้านี้</option>
+              <option value="all">📑 ปั๊มทุกหน้า</option>
+              <option value="custom_pages">📋 เลือกหลายหน้า...</option>
+            </select>
+
+            <button type="button" class="btn btn-outline btn-sm" id="btnPosAddStamp" onclick="addNewStampPlacement()" style="padding: 3px 8px; font-size: 11.5px; height: 26px; font-weight: 600; color: #16a34a; border-color: #86efac; background: #f0fdf4;" title="เพิ่มตำแหน่งตราปั๊มอีก 1 จุดบนเอกสาร">
+              <i class="fa-solid fa-circle-plus"></i> + เพิ่มจุดปั๊มอีก
+            </button>
+          </div>
+        </div>
+
+        <!-- Custom Pages Checkboxes Bar (ปรากฏเมื่อเลือก 'เลือกหลายหน้า...') -->
+        <div id="posCustomPagesBar" style="display: none; align-items: center; gap: 6px; padding: 4px 8px; background: #e0f2fe; border-radius: 4px; font-size: 11.5px; color: #0369a1;">
+          <span style="font-weight: 600;"><i class="fa-solid fa-check-square"></i> เลือกหน้าที่ต้องการปั๊ม:</span>
+          <div id="posCustomPagesCheckboxes" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        </div>
+
+        <!-- Row 2: Stamp Resizing (ย่อ-ขยาย), Presets & Nudge -->
+        <div class="position-modal-toolbar-row" style="border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+          <!-- Stamp Resizing (ย่อ-ขยายตราปั๊ม) -->
+          <div class="position-toolbar-group">
+            <span class="position-toolbar-label"><i class="fa-solid fa-up-right-and-down-left-from-center text-primary"></i> ย่อ-ขยาย:</span>
+            <button type="button" class="pos-scale-btn" onclick="adjustPositionModalScale(-0.05)" title="ลดขนาด">-</button>
+            <input type="range" id="posStampScaleSlider" min="0.5" max="2.0" step="0.05" value="1.0" oninput="onPositionModalScaleInput(this.value)" style="width: 85px; cursor: pointer;">
+            <button type="button" class="pos-scale-btn" onclick="adjustPositionModalScale(0.05)" title="เพิ่มขนาด">+</button>
+            <span id="posStampScaleVal" style="font-size: 12px; font-weight: 700; color: #1d4ed8; min-width: 40px; text-align: center;">100%</span>
+            
+            <div style="display: flex; gap: 3px;">
+              <button type="button" class="pos-scale-pill" onclick="setPositionModalQuickScale(0.8)">80%</button>
+              <button type="button" class="pos-scale-pill" onclick="setPositionModalQuickScale(1.0)">100%</button>
+              <button type="button" class="pos-scale-pill" onclick="setPositionModalQuickScale(1.25)">125%</button>
+              <button type="button" class="pos-scale-pill" onclick="setPositionModalQuickScale(1.5)">150%</button>
+            </div>
+          </div>
+
+          <!-- Quick Presets -->
+          <div class="position-toolbar-group">
+            <span class="position-toolbar-label"><i class="fa-solid fa-location-dot text-primary"></i> ตำแหน่ง:</span>
+            <div class="pos-preset-btn-group">
+              <button type="button" class="pos-preset-btn" onclick="applyPositionModalPreset('top-right')">ขวาบน</button>
+              <button type="button" class="pos-preset-btn" onclick="applyPositionModalPreset('top-center')">กลางบน</button>
+              <button type="button" class="pos-preset-btn" onclick="applyPositionModalPreset('top-left')">ซ้ายบน</button>
+              <button type="button" class="pos-preset-btn" onclick="applyPositionModalPreset('bottom-right')">ขวาล่าง</button>
+              <button type="button" class="pos-preset-btn" onclick="applyPositionModalPreset('bottom-left')">ซ้ายล่าง</button>
+            </div>
+            
+            <!-- Nudge -->
+            <div class="pos-nudge-btns">
+              <button type="button" class="nudge-btn-pos" onclick="nudgePositionModal(-2, 0)" title="เลื่อนซ้าย">◀</button>
+              <button type="button" class="nudge-btn-pos" onclick="nudgePositionModal(2, 0)" title="เลื่อนขวา">▶</button>
+              <button type="button" class="nudge-btn-pos" onclick="nudgePositionModal(0, -2)" title="เลื่อนขึ้น">▲</button>
+              <button type="button" class="nudge-btn-pos" onclick="nudgePositionModal(0, 2)" title="เลื่อนลง">▼</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3: Active Placements Chips Bar (เมื่อมีมากกว่า 1 จุดปั๊ม) -->
+        <div id="posPlacementsBarContainer" style="display: none; align-items: center; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+          <div class="position-toolbar-group">
+            <span class="position-toolbar-label" style="color: #15803d;"><i class="fa-solid fa-stamp"></i> รายการตราปั๊ม:</span>
+            <div id="posPlacementsList" class="pos-placements-bar"></div>
+          </div>
+          <button type="button" class="btn btn-danger-sm" id="btnPosDeletePlacement" onclick="deleteActiveStampPlacement()" title="ลบตราปั๊มจุดที่เลือกนี้" style="display: none; padding: 2px 8px; font-size: 11px;">
+            <i class="fa-solid fa-trash"></i> ลบจุดนี้
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Viewer Area: Document Page Canvas + Floating Draggable Stamp -->
+      <div class="modal-body position-modal-viewport" id="positionModalViewport" style="grid-template-columns: 1fr; padding: 16px; background: #334155; overflow: auto; display: flex; justify-content: center; align-items: flex-start; min-height: 480px; position: relative;">
+        <!-- Loading Indicator -->
+        <div id="positionDocLoading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ffffff; text-align: center; z-index: 10;">
+          <i class="fa-solid fa-spinner fa-spin" style="font-size: 32px; color: #60a5fa; margin-bottom: 8px;"></i>
+          <p style="font-size: 14px; margin: 0;">กำลังเปิดตัวเอกสารจากไฟล์แนบ...</p>
+        </div>
+
+        <!-- Document Paper Canvas Wrapper -->
+        <div class="position-doc-wrapper" id="positionDocWrapper" style="display: none; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; background: #ffffff; cursor: crosshair;">
+          <canvas id="positionDocCanvas" style="display: block; max-width: 100%; height: auto;"></canvas>
+          
+          <!-- Floating Draggable Stamp Box -->
+          <div id="positionFloatingStamp" class="position-floating-stamp" title="คลิกค้างเพื่อลาก หรือคลิกบนเอกสารเพื่อย้ายตำแหน่ง">
+            <div class="floating-stamp-handle">
+              <i class="fa-solid fa-arrows-up-down-left-right"></i>
+              <span id="floatingStampLabel">ตราปั๊มรับเข้า</span>
+            </div>
+            <div id="floatingStampCanvasHolder"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer: Position coordinates and confirm button -->
+      <div class="modal-footer" style="padding: 10px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 12.5px; color: #475569; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-crosshairs text-primary"></i>
+          <span id="positionCoordsDisplay">ตำแหน่ง: แนวนอน 65%, แนวตั้ง 3% (ขวาบน)</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('stampPositionModal')">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" onclick="confirmPositionModalSelection()">
+            <i class="fa-solid fa-check"></i> ใช้ตำแหน่งนี้
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -1482,9 +1691,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691103_2"></script>
-  <script src="stampEngine.js?v=25691103_2"></script>
-  <script src="app.js?v=25691103_2"></script>
+  <script src="stampAssets.js?v=25691103_6"></script>
+  <script src="stampEngine.js?v=25691103_6"></script>
+  <script src="app.js?v=25691103_6"></script>
 </body>
 
 </html>

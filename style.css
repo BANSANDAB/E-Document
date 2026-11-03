@@ -1229,14 +1229,17 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  min-height: 240px;
+  min-height: 260px;
   position: relative;
+  padding: 8px;
 }
 
 .preview-canvas-container img,
 .preview-canvas-container canvas {
   max-width: 100%;
-  max-height: 300px;
+  max-height: 340px;
+  width: auto;
+  height: auto;
   object-fit: contain;
 }
 
@@ -1615,4 +1618,377 @@ body {
 .calendar-picker-btn:hover {
   background: #dbeafe !important;
   border-color: #93c5fd !important;
+}
+
+/* ==========================================================================
+   Compact Screen-Fit Inbound Form Layout (จัดให้พอดีกับหน้าจอ ไม่ล้น)
+   ========================================================================== */
+.inbound-form-compact-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .inbound-form-compact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.inbound-inputs-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inbound-stamp-action-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.stamp-action-card {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.stamp-action-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.stamp-action-preview-box {
+  background: #ffffff;
+  border: 1px dashed #94a3b8;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  flex: 1;
+}
+
+.stamp-action-preview-box canvas {
+  max-width: 100%;
+  max-height: 105px;
+  height: auto;
+  object-fit: contain;
+}
+
+.stamp-action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.btn-select-pos {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1.5px solid #93c5fd;
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.btn-select-pos:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+}
+
+.btn-save-inbound {
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+}
+
+.btn-save-inbound:hover {
+  background: linear-gradient(135deg, #1e40af, #1d4ed8);
+}
+
+/* ==========================================================================
+   Document Visual Stamp Position Selector Modal (เปิดเอกสารจริงเพื่อเลือกตำแหน่ง)
+   ========================================================================== */
+.position-modal-toolbar {
+  background: #f8fafc;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.position-modal-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.position-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.pos-page-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #1e40af;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.pos-page-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #3b82f6;
+}
+
+.pos-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: #f1f5f9;
+}
+
+.pos-page-select {
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1e3a8a;
+  cursor: pointer;
+}
+
+.pos-scale-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e40af;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-scale-btn:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.pos-scale-pill {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 11px;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-scale-pill:hover,
+.pos-scale-pill.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.pos-placements-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.pos-placement-pill {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.pos-placement-pill:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.pos-placement-pill.active {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.pos-placement-pill .pill-del {
+  color: #ef4444;
+  margin-left: 2px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pos-placement-pill .pill-del:hover {
+  color: #b91c1c;
+}
+
+.position-toolbar-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.pos-preset-btn-group {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pos-preset-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.pos-preset-btn:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.pos-preset-btn.active {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.pos-nudge-btns {
+  display: flex;
+  gap: 3px;
+}
+
+.nudge-btn-pos {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.nudge-btn-pos:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+.position-floating-stamp {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  z-index: 20;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  border: 2px dashed #2563eb;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  transition: box-shadow 0.15s ease;
+}
+
+.position-floating-stamp:active {
+  cursor: grabbing;
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.6);
+  border-color: #1d4ed8;
+}
+
+.floating-stamp-handle {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 2px 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.floating-stamp-handle i {
+  font-size: 9px;
+}
+
+#floatingStampCanvasHolder canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;
 }
