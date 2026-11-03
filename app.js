@@ -2205,6 +2205,13 @@ async function loadStoredRecords() {
     AppState.records = [];
   }
 
+  // Filter out any test rows
+  AppState.records = (AppState.records || []).filter(r => 
+    !String(r.id || '').startsWith('test_') && 
+    !String(r.title || '').includes('ทดสอบการเชื่อมต่อ') &&
+    !String(r.bookNo || '').includes('ทดสอบ')
+  );
+
   reindexRecords();
   renderAllTables();
   updateKpiStats();
@@ -2262,6 +2269,11 @@ async function syncInboundRecordsFromGas() {
 
       json.data.forEach(sheetRec => {
         if (!sheetRec.bookNo && !sheetRec.id) return;
+        // Ignore test records
+        if (sheetRec.id && String(sheetRec.id).startsWith('test_')) return;
+        if (sheetRec.title && String(sheetRec.title).includes('ทดสอบการเชื่อมต่อ')) return;
+        if (sheetRec.bookNo && String(sheetRec.bookNo).includes('ทดสอบ')) return;
+
         // Find existing record by id or bookNo
         let localRec = AppState.records.find(r => 
           (r.id && sheetRec.id && String(r.id) === String(sheetRec.id)) || 
@@ -2387,6 +2399,7 @@ async function syncExistingRecordsToGas() {
   try {
     // 1. Sync Inbound records
     for (const r of AppState.records) {
+      if (String(r.id || '').startsWith('test_') || String(r.title || '').includes('ทดสอบการเชื่อมต่อ')) continue;
       await syncToGasIfAvailable('saveRecord', r);
     }
     // 2. Sync Outbound records

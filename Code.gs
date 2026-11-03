@@ -34,28 +34,10 @@ function testConnection() {
     Logger.log("✗ 1. ข้อผิดพลาดชีตครู: " + err.toString());
   }
 
-  // 2. ตรวจสอบและทดสอบบันทึกชีตหนังสือรับ
+  // 2. ตรวจสอบชีตหนังสือรับ
   try {
     const sheet = getInboundSheet();
-    Logger.log("✓ 2. เชื่อมต่อชีตหนังสือรับสำเร็จ: " + sheet.getName());
-    
-    // ทดลองบันทึกแถวทดสอบ 1 รายการ
-    const testRow = [
-      'test_' + Date.now(),
-      sheet.getLastRow(),
-      'ทดสอบ/' + (new Date().getFullYear() + 543),
-      '17/10/2569',
-      '20:30 น.',
-      'ทดสอบการเชื่อมต่อระบบฐานข้อมูล Google Sheets',
-      '-',
-      'รอเสนอ ผอ.',
-      '',
-      '',
-      '',
-      new Date().toLocaleString('th-TH')
-    ];
-    sheet.appendRow(testRow);
-    Logger.log("✓ 2.1 บันทึกข้อมูลทดสอบลงชีตหนังสือรับสำเร็จ! แถวที่ " + sheet.getLastRow());
+    Logger.log("✓ 2. เชื่อมต่อชีตหนังสือรับสำเร็จ: " + sheet.getName() + " (มีข้อมูลปัจจุบัน: " + Math.max(0, sheet.getLastRow() - 1) + " รายการ)");
   } catch (err) {
     Logger.log("✗ 2. ข้อผิดพลาดชีตหนังสือรับ: " + err.toString());
   }
@@ -63,7 +45,7 @@ function testConnection() {
   // 3. ตรวจสอบชีตหนังสือส่ง
   try {
     const outSheet = getOutboundSheet();
-    Logger.log("✓ 3. เชื่อมต่อชีตหนังสือส่งสำเร็จ: " + outSheet.getName());
+    Logger.log("✓ 3. เชื่อมต่อชีตหนังสือส่งสำเร็จ: " + outSheet.getName() + " (มีข้อมูลปัจจุบัน: " + Math.max(0, outSheet.getLastRow() - 1) + " รายการ)");
   } catch (err) {
     Logger.log("✗ 3. ข้อผิดพลาดชีตหนังสือส่ง: " + err.toString());
   }
@@ -71,7 +53,7 @@ function testConnection() {
   // 4. ตรวจสอบชีตคำสั่ง
   try {
     const ordSheet = getOrderSheet();
-    Logger.log("✓ 4. เชื่อมต่อชีตคำสั่งสำเร็จ: " + ordSheet.getName());
+    Logger.log("✓ 4. เชื่อมต่อชีตคำสั่งสำเร็จ: " + ordSheet.getName() + " (มีข้อมูลปัจจุบัน: " + Math.max(0, ordSheet.getLastRow() - 1) + " รายการ)");
   } catch (err) {
     Logger.log("✗ 4. ข้อผิดพลาดชีตคำสั่ง: " + err.toString());
   }
@@ -90,6 +72,56 @@ function testConnection() {
 }
 
 /**
+ * ฟังก์ชันทำความสะอาดชีต: ลบแถวทดสอบ (test_) และแถวที่ซ้ำซ้อนกัน พร้อมจัดเรียงลำดับใหม่
+ * (สามารถเลือกชื่อฟังก์ชันนี้แล้วกดปุ่ม "▷ Run" ใน Apps Script ได้ทันที)
+ */
+function cleanUpDuplicatesAndTests() {
+  Logger.log("==================================================");
+  Logger.log("เริ่มต้นทำความสะอาดชีต InboundRecords...");
+  const sheet = getInboundSheet();
+  const rows = sheet.getDataRange().getValues();
+  if (rows.length <= 1) {
+    Logger.log("ไม่มีข้อมูลแถวในชีต");
+    return { status: 'success', deletedCount: 0 };
+  }
+
+  const seenKeys = new Set();
+  const rowsToDelete = [];
+
+  // ตรวจสอบตั้งแต่แถวล่างขึ้นบน เพื่อไม่ให้ row index เลื่อนขณะลบ
+  for (let i = rows.length - 1; i >= 1; i--) {
+    const id = String(rows[i][0] || '').trim();
+    const bookNo = String(rows[i][2] || '').trim();
+    const title = String(rows[i][5] || '').trim();
+
+    const isTest = id.startsWith('test_') || title.includes('ทดสอบการเชื่อมต่อ') || bookNo.includes('ทดสอบ');
+    const isDuplicate = (id && seenKeys.has('id_' + id)) || (bookNo && seenKeys.has('no_' + bookNo));
+
+    if (isTest || isDuplicate) {
+      rowsToDelete.push(i + 1);
+    } else {
+      if (id) seenKeys.add('id_' + id);
+      if (bookNo) seenKeys.add('no_' + bookNo);
+    }
+  }
+
+  Logger.log("พบแถวที่ต้องลบ: " + rowsToDelete.length + " แถว (แถวที่: " + rowsToDelete.join(', ') + ")");
+  rowsToDelete.forEach(rowNum => {
+    sheet.deleteRow(rowNum);
+  });
+
+  // จัดเรียงลำดับคอลัมน์ 2 ใหม่ (1, 2, 3...)
+  const lastRow = sheet.getLastRow();
+  for (let i = 2; i <= lastRow; i++) {
+    sheet.getRange(i, 2).setValue(i - 1);
+  }
+
+  Logger.log("✓ ลบแถวซ้ำและแถวทดสอบเรียบร้อย! คงเหลือรายการข้อมูลจริง " + (lastRow - 1) + " รายการ");
+  Logger.log("==================================================");
+  return { status: 'success', deletedCount: rowsToDelete.length, remainingCount: lastRow - 1 };
+}
+
+/**
  * Web App HTTP GET Handler
  */
 function doGet(e) {
@@ -103,6 +135,8 @@ function doGet(e) {
         result = { status: 'success', data: getTeachersList() };
       } else if (action === 'getRecords') {
         result = { status: 'success', data: getInboundRecords() };
+      } else if (action === 'cleanDuplicates') {
+        result = cleanUpDuplicatesAndTests();
       }
     } catch (err) {
       result = { status: 'error', message: err.toString() };
@@ -265,8 +299,24 @@ function getInboundRecords() {
   if (rows.length <= 1) return [];
 
   const records = [];
+  const seenIds = new Set();
+  const seenBookNos = new Set();
+
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i];
+    const id = String(r[0] || '').trim();
+    const bookNo = String(r[2] || '').trim();
+    const title = String(r[5] || '').trim();
+
+    // ข้ามแถวทดสอบระบบ
+    if (id.startsWith('test_') || title.includes('ทดสอบการเชื่อมต่อ')) continue;
+
+    // กรองแถวซ้ำ (Deduplicate)
+    if (id && seenIds.has(id)) continue;
+    if (bookNo && seenBookNos.has(bookNo)) continue;
+    if (id) seenIds.add(id);
+    if (bookNo) seenBookNos.add(bookNo);
+
     let proposalData = null;
     let directorData = null;
     try {
@@ -278,7 +328,7 @@ function getInboundRecords() {
 
     records.push({
       id: r[0],
-      orderNo: r[1],
+      orderNo: records.length + 1,
       bookNo: r[2],
       receiveDate: r[3],
       receiveTime: r[4],
@@ -296,12 +346,26 @@ function getInboundRecords() {
 }
 
 /**
- * บันทึกหนังสือรับเข้า Google Sheet และอัพโหลดไฟล์เข้า Google Drive
+ * บันทึกหนังสือรับเข้า Google Sheet และอัพโหลดไฟล์เข้า Google Drive (แบบ Upsert ป้องกันแถวซ้ำ)
  */
 function saveInboundRecord(record) {
   const sheet = getInboundSheet();
   let fileUrl = '';
   const cleanBookNo = String(record.bookNo || '').replace(/[\/\\]/g, '-');
+
+  // ตรวจสอบว่ามีรายการนี้อยู่แล้วหรือไม่ (ตาม ID หรือเลขหนังสือรับ)
+  const rows = sheet.getDataRange().getValues();
+  let existingRowIndex = -1;
+  for (let i = 1; i < rows.length; i++) {
+    const rowId = String(rows[i][0] || '').trim();
+    const rowBookNo = String(rows[i][2] || '').trim();
+    if ((record.id && rowId === String(record.id).trim()) ||
+        (record.bookNo && rowBookNo === String(record.bookNo).trim())) {
+      existingRowIndex = i + 1;
+      fileUrl = rows[i][8] || ''; // เก็บ URL ไฟล์เดิมไว้หากไม่มีการอัพโหลดใหม่
+      break;
+    }
+  }
 
   // Upload files to Google Drive folder (supports multiple files)
   try {
@@ -317,34 +381,50 @@ function saveInboundRecord(record) {
           if (url) urls.push(url);
         }
       }
-      fileUrl = urls.join('\n');
+      if (urls.length > 0) fileUrl = urls.join('\n');
     } else if (record.stampedDataUrl) {
-      fileUrl = uploadBase64FileToDrive(
+      const url = uploadBase64FileToDrive(
         record.stampedDataUrl,
         'หนังสือรับ_' + cleanBookNo + '.pdf',
         record.fileType || 'application/pdf'
       );
+      if (url) fileUrl = url;
     }
   } catch (errUpload) {
     Logger.log('Drive upload failed in saveInboundRecord: ' + errUpload);
   }
 
-  sheet.appendRow([
-    record.id,
-    sheet.getLastRow(), // Order number
-    record.bookNo,
-    record.receiveDate,
-    record.receiveTime,
-    record.title || '',
-    record.assignee || '-',
-    record.status || 'รอเสนอ ผอ.',
-    fileUrl,
-    record.proposalData ? JSON.stringify(record.proposalData) : '',
-    record.directorData ? JSON.stringify(record.directorData) : '',
-    new Date().toLocaleString('th-TH')
-  ]);
-
-  return { status: 'success', fileUrl };
+  if (existingRowIndex > 0) {
+    // อัพเดตแถวเดิมที่มีอยู่แล้ว
+    sheet.getRange(existingRowIndex, 3).setValue(record.bookNo);
+    sheet.getRange(existingRowIndex, 4).setValue(record.receiveDate);
+    sheet.getRange(existingRowIndex, 5).setValue(record.receiveTime);
+    sheet.getRange(existingRowIndex, 6).setValue(record.title || '');
+    if (record.assignee && record.assignee !== '-') sheet.getRange(existingRowIndex, 7).setValue(record.assignee);
+    if (record.status) sheet.getRange(existingRowIndex, 8).setValue(record.status);
+    if (fileUrl) sheet.getRange(existingRowIndex, 9).setValue(fileUrl);
+    if (record.proposalData) sheet.getRange(existingRowIndex, 10).setValue(JSON.stringify(record.proposalData));
+    if (record.directorData) sheet.getRange(existingRowIndex, 11).setValue(JSON.stringify(record.directorData));
+    sheet.getRange(existingRowIndex, 12).setValue(new Date().toLocaleString('th-TH'));
+    return { status: 'success', fileUrl, action: 'updated', rowIndex: existingRowIndex };
+  } else {
+    // เพิ่มแถวใหม่
+    sheet.appendRow([
+      record.id,
+      sheet.getLastRow(), // Order number
+      record.bookNo,
+      record.receiveDate,
+      record.receiveTime,
+      record.title || '',
+      record.assignee || '-',
+      record.status || 'รอเสนอ ผอ.',
+      fileUrl,
+      record.proposalData ? JSON.stringify(record.proposalData) : '',
+      record.directorData ? JSON.stringify(record.directorData) : '',
+      new Date().toLocaleString('th-TH')
+    ]);
+    return { status: 'success', fileUrl, action: 'created' };
+  }
 }
 
 /**
