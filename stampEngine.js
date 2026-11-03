@@ -552,8 +552,17 @@ const StampEngine = (function () {
       stamp3Pos
     } = options;
 
-    // Load PDF with ignoreEncryption: true to handle encrypted/permission-restricted government PDFs
-    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    // Load PDF with decryption support for encrypted/permission-restricted government PDFs
+    let pdfDoc;
+    try {
+      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true, password: '' });
+    } catch (err1) {
+      try {
+        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      } catch (err2) {
+        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+      }
+    }
     const pages = pdfDoc.getPages();
     const page = pages[0]; // First page
     const pageWidth = page.getWidth();

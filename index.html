@@ -18,11 +18,16 @@
   <!-- Font Awesome 6 Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  <!-- PDF-Lib Library for Client-Side PDF Stamping -->
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <!-- PDF-Lib Library with Decryption Support for Client-Side PDF Stamping -->
+  <script src="pdf-lib.min.js"></script>
+  <script>
+    if (!window.PDFLib) {
+      document.write('<script src="https://unpkg.com/@cantoo/pdf-lib/dist/pdf-lib.min.js"><\/script>');
+    }
+  </script>
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=25691103_2">
 </head>
 
 <body>
@@ -1477,9 +1482,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js"></script>
-  <script src="stampEngine.js"></script>
-  <script src="app.js"></script>
+  <script src="stampAssets.js?v=25691103_2"></script>
+  <script src="stampEngine.js?v=25691103_2"></script>
+  <script src="app.js?v=25691103_2"></script>
 </body>
 
 </html>
