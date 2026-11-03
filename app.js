@@ -17,7 +17,9 @@ const AppState = {
   records: [],
   teachers: [],
   selectedFile: null, // { name, type, dataUrl, bytes }
+  selectedFiles: [], // [ { name, type, size, dataUrl, bytes }, ... ]
   currentDocId: null, // Active document being stamped
+  activeViewFileIndex: 0,
   activeTab: 'receive', // 'receive' | 'pending' | 'search' | 'settings'
   showAllInbound: false, // Default show 5 items
   showAllPending: false, // Default show 5 items
@@ -77,6 +79,7 @@ const ThaiDateUtil = {
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
   initClock();
+  initReceiveDateSelectors();
   initTabNavigation();
   initDropzone();
   initSignaturePads();
@@ -122,10 +125,10 @@ function initClock() {
     }
   }
 
-  // Set today's date in Buddhist Era for the date input
+  // Set today's date in Buddhist Era for the date selectors
   const dateInput = document.getElementById('receiveDate');
   if (dateInput && !dateInput.value) {
-    dateInput.value = ThaiDateUtil.formatThaiDateShort(new Date());
+    setReceiveDateToToday();
   }
 
   tick();
@@ -300,8 +303,146 @@ function populateTeacherDropdowns() {
 }
 
 /* ==========================================================================
-   File Dropzone & Upload Handler
+   Day/Month/Year Date Selectors (วันที่รับ - เลือกได้ ไม่ต้องกรอกเอง)
    ========================================================================== */
+function initReceiveDateSelectors() {
+  const daySelect = document.getElementById('receiveDay');
+  const monthSelect = document.getElementById('receiveMonth');
+  const yearSelect = document.getElementById('receiveYear');
+
+  if (!daySelect || !monthSelect || !yearSelect) return;
+
+  // 1. Days 01 - 31
+  daySelect.innerHTML = Array.from({ length: 31 }, (_, i) => {
+    const d = String(i + 1).padStart(2, '0');
+    return `<option value="${d}">${d}</option>`;
+  }).join('');
+
+  // 2. Months 01 - 12 (Thai short name + full name)
+  monthSelect.innerHTML = ThaiDateUtil.thaiMonths.map((name, idx) => {
+    const val = String(idx + 1).padStart(2, '0');
+    const shortName = ThaiDateUtil.thaiMonthsShort[idx];
+    return `<option value="${val}">${shortName} (${name})</option>`;
+  }).join('');
+
+  // 3. Years (Current Buddhist year +- 5 years)
+  const currentBEYear = ThaiDateUtil.getBuddhistYear();
+  const years = [];
+  for (let y = currentBEYear - 3; y <= currentBEYear + 6; y++) {
+    years.push(y);
+  }
+  yearSelect.innerHTML = years.map(y => `<option value="${y}">พ.ศ. ${y}</option>`).join('');
+
+  // Default to today
+  setReceiveDateToToday();
+}
+
+function setReceiveDateToToday() {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = String(ThaiDateUtil.getBuddhistYear(now));
+
+  const daySelect = document.getElementById('receiveDay');
+  const monthSelect = document.getElementById('receiveMonth');
+  const yearSelect = document.getElementById('receiveYear');
+  const dateInput = document.getElementById('receiveDate');
+
+  if (daySelect) daySelect.value = day;
+  if (monthSelect) monthSelect.value = month;
+  if (yearSelect) yearSelect.value = year;
+  if (dateInput) {
+    dateInput.value = `${day}/${month}/${year}`;
+  }
+
+  updateInboundStampPreview();
+}
+
+function onReceiveDateSelectChange() {
+  const daySelect = document.getElementById('receiveDay');
+  const monthSelect = document.getElementById('receiveMonth');
+  const yearSelect = document.getElementById('receiveYear');
+  const dateInput = document.getElementById('receiveDate');
+
+  if (daySelect && monthSelect && yearSelect && dateInput) {
+    dateInput.value = `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`;
+  }
+
+  updateInboundStampPreview();
+}
+
+// Edit Modal Date Selectors
+function initEditReceiveDateSelectors() {
+  const daySelect = document.getElementById('editReceiveDay');
+  const monthSelect = document.getElementById('editReceiveMonth');
+  const yearSelect = document.getElementById('editReceiveYear');
+
+  if (!daySelect || !monthSelect || !yearSelect) return;
+
+  daySelect.innerHTML = Array.from({ length: 31 }, (_, i) => {
+    const d = String(i + 1).padStart(2, '0');
+    return `<option value="${d}">${d}</option>`;
+  }).join('');
+
+  monthSelect.innerHTML = ThaiDateUtil.thaiMonths.map((name, idx) => {
+    const val = String(idx + 1).padStart(2, '0');
+    const shortName = ThaiDateUtil.thaiMonthsShort[idx];
+    return `<option value="${val}">${shortName} (${name})</option>`;
+  }).join('');
+
+  const currentBEYear = ThaiDateUtil.getBuddhistYear();
+  const years = [];
+  for (let y = currentBEYear - 3; y <= currentBEYear + 6; y++) {
+    years.push(y);
+  }
+  yearSelect.innerHTML = years.map(y => `<option value="${y}">พ.ศ. ${y}</option>`).join('');
+}
+
+function setEditReceiveDate(dateStr) {
+  initEditReceiveDateSelectors();
+  const daySelect = document.getElementById('editReceiveDay');
+  const monthSelect = document.getElementById('editReceiveMonth');
+  const yearSelect = document.getElementById('editReceiveYear');
+  const dateInput = document.getElementById('editReceiveDate');
+
+  let day = '01', month = '01', year = String(ThaiDateUtil.getBuddhistYear());
+  if (dateStr && typeof dateStr === 'string') {
+    const parts = dateStr.includes('/') ? dateStr.split('/') : dateStr.split('-');
+    if (parts.length >= 3) {
+      day = String(parts[0]).padStart(2, '0');
+      month = String(parts[1]).padStart(2, '0');
+      year = String(parts[2]);
+    }
+  }
+
+  if (daySelect) daySelect.value = day;
+  if (monthSelect) monthSelect.value = month;
+  if (yearSelect) yearSelect.value = year;
+  if (dateInput) dateInput.value = `${day}/${month}/${year}`;
+}
+
+function onEditReceiveDateChange() {
+  const daySelect = document.getElementById('editReceiveDay');
+  const monthSelect = document.getElementById('editReceiveMonth');
+  const yearSelect = document.getElementById('editReceiveYear');
+  const dateInput = document.getElementById('editReceiveDate');
+
+  if (daySelect && monthSelect && yearSelect && dateInput) {
+    dateInput.value = `${daySelect.value}/${monthSelect.value}/${yearSelect.value}`;
+  }
+}
+
+/* ==========================================================================
+   File Dropzone & Upload Handler (รองรับแนบหลายไฟล์)
+   ========================================================================== */
+function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 function initDropzone() {
   const dropzone = document.getElementById('fileDropzone');
   const fileInput = document.getElementById('docFileInput');
@@ -325,80 +466,159 @@ function initDropzone() {
   });
 
   dropzone.addEventListener('drop', (e) => {
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleSelectedFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleSelectedFiles(e.dataTransfer.files);
     }
   });
 
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleSelectedFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      handleSelectedFiles(e.target.files);
     }
   });
 }
 
-async function handleSelectedFile(file) {
+async function handleSelectedFiles(files) {
+  if (!files || files.length === 0) return;
+
   const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-  if (!validTypes.includes(file.type)) {
+  const validFiles = Array.from(files).filter(f => validTypes.includes(f.type));
+
+  if (validFiles.length < files.length) {
+    showToast('บางไฟล์ไม่ใช่ .pdf หรือรูปภาพ (.jpg, .png) ระบบจะเลือกเฉพาะไฟล์ที่รองรับ', 'warning');
+  }
+
+  if (validFiles.length === 0) {
     showToast('กรุณาเลือกไฟล์ .pdf หรือไฟล์รูปภาพ (.jpg, .png)', 'warning');
     return;
   }
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const dataUrl = e.target.result;
-    let bytes = null;
+  if (!AppState.selectedFiles) {
+    AppState.selectedFiles = [];
+  }
 
-    if (file.type === 'application/pdf') {
-      const arrayBufferReader = new FileReader();
-      arrayBufferReader.onload = () => {
-        AppState.selectedFile = {
-          name: file.name,
-          type: file.type,
-          dataUrl,
-          bytes: new Uint8Array(arrayBufferReader.result)
-        };
-        updateFilePreviewUI();
+  for (const file of validFiles) {
+    // Prevent duplicate entries
+    const duplicate = AppState.selectedFiles.some(f => f.name === file.name && f.size === file.size);
+    if (duplicate) continue;
+
+    await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        if (file.type === 'application/pdf') {
+          const abReader = new FileReader();
+          abReader.onload = () => {
+            AppState.selectedFiles.push({
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              dataUrl,
+              bytes: new Uint8Array(abReader.result)
+            });
+            resolve();
+          };
+          abReader.readAsArrayBuffer(file);
+        } else {
+          AppState.selectedFiles.push({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            dataUrl,
+            bytes: null
+          });
+          resolve();
+        }
       };
-      arrayBufferReader.readAsArrayBuffer(file);
-    } else {
-      AppState.selectedFile = {
-        name: file.name,
-        type: file.type,
-        dataUrl,
-        bytes: null
-      };
-      updateFilePreviewUI();
-    }
-  };
-  reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  AppState.selectedFile = AppState.selectedFiles[0] || null;
+  updateFilePreviewUI();
+  showToast(`เลือกไฟล์แล้วทั้งหมด ${AppState.selectedFiles.length} ไฟล์`, 'info');
 }
 
-function updateFilePreviewUI() {
-  const previewDiv = document.getElementById('selectedFilePreview');
-  if (!previewDiv) return;
-
-  if (AppState.selectedFile) {
-    const isPdf = AppState.selectedFile.type === 'application/pdf';
-    previewDiv.innerHTML = `
-      <div class="file-preview-pill">
-        <i class="fa-solid ${isPdf ? 'fa-file-pdf text-danger' : 'fa-file-image text-primary'}"></i>
-        <span><strong>${escapeHtml(AppState.selectedFile.name)}</strong></span>
-        <button type="button" class="btn-outline btn-sm" onclick="clearSelectedFile()" style="margin-left: 8px; border:none; color:#ef4444;">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-    `;
-  } else {
-    previewDiv.innerHTML = '';
+function removeSelectedFile(index) {
+  if (AppState.selectedFiles && index >= 0 && index < AppState.selectedFiles.length) {
+    AppState.selectedFiles.splice(index, 1);
+    AppState.selectedFile = AppState.selectedFiles[0] || null;
+    const fileInput = document.getElementById('docFileInput');
+    if (fileInput) fileInput.value = '';
+    updateFilePreviewUI();
   }
 }
 
-function clearSelectedFile() {
+function clearSelectedFiles() {
+  AppState.selectedFiles = [];
   AppState.selectedFile = null;
   const fileInput = document.getElementById('docFileInput');
   if (fileInput) fileInput.value = '';
   updateFilePreviewUI();
+}
+
+function clearSelectedFile() {
+  clearSelectedFiles();
+}
+
+function updateFilePreviewUI() {
+  const previewDiv = document.getElementById('selectedFilePreview');
+  const countBadge = document.getElementById('fileCountBadge');
+  if (!previewDiv) return;
+
+  const files = AppState.selectedFiles || [];
+  const count = files.length;
+  if (countBadge) {
+    countBadge.textContent = count > 0 ? `(เลือกแล้ว ${count} ไฟล์)` : '';
+  }
+
+  if (count === 0) {
+    previewDiv.innerHTML = '';
+    return;
+  }
+
+  let html = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; margin-bottom: 5px;">
+      <span style="font-size: 11.5px; font-weight: 600; color: #1e40af;">
+        <i class="fa-solid fa-folder-open"></i> รายการไฟล์แนบ (${count} ไฟล์):
+      </span>
+      <div style="display: flex; gap: 6px;">
+        <button type="button" class="btn-edit-sm" onclick="document.getElementById('docFileInput').click()" style="padding: 1px 7px; font-size: 11px;">
+          <i class="fa-solid fa-plus"></i> เพิ่มไฟล์อีก
+        </button>
+        <button type="button" class="btn-danger-sm" onclick="clearSelectedFiles()" style="padding: 1px 7px; font-size: 11px;">
+          <i class="fa-solid fa-trash-can"></i> ล้างทั้งหมด
+        </button>
+      </div>
+    </div>
+    <div class="file-preview-list">
+  `;
+
+  files.forEach((file, index) => {
+    const isPdf = file.type === 'application/pdf';
+    const isPrimary = index === 0;
+    const sizeStr = formatFileSize(file.size);
+    html += `
+      <div class="file-preview-item" style="${isPrimary ? 'background:#eff6ff; border-color:#bfdbfe;' : ''}">
+        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <i class="fa-solid ${isPdf ? 'fa-file-pdf text-danger' : 'fa-file-image text-primary'}" style="font-size: 15px; flex-shrink: 0;"></i>
+          <span style="display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; ${isPrimary ? 'background:#2563eb; color:#fff;' : 'background:#64748b; color:#fff;'}; flex-shrink: 0;">
+            ${isPrimary ? 'เอกสารหลัก (ประทับตรา)' : 'เอกสารแนบ ' + index}
+          </span>
+          <span title="${escapeHtml(file.name)}" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px;">
+            ${escapeHtml(file.name)}
+          </span>
+          <span style="font-size: 11px; color: #94a3b8; flex-shrink: 0;">(${sizeStr})</span>
+        </div>
+        <button type="button" class="btn-outline btn-sm" onclick="removeSelectedFile(${index})" title="ลบไฟล์นี้" style="border: none; color: #ef4444; padding: 2px 6px; cursor: pointer;">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    `;
+  });
+
+  html += '</div>';
+  previewDiv.innerHTML = html;
 }
 
 /* ==========================================================================
@@ -411,12 +631,16 @@ async function generateSampleDoc() {
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const reader = new FileReader();
     reader.onload = () => {
-      AppState.selectedFile = {
+      const sampleFile = {
         name: `หนังสือราชการ_ตัวอย่าง_${Date.now().toString().slice(-4)}.pdf`,
         type: 'application/pdf',
+        size: pdfBytes.length,
         dataUrl: reader.result,
         bytes: pdfBytes
       };
+      if (!AppState.selectedFiles) AppState.selectedFiles = [];
+      AppState.selectedFiles.push(sampleFile);
+      AppState.selectedFile = AppState.selectedFiles[0];
       updateFilePreviewUI();
       showToast('สร้างตัวอย่างหนังสือราชการสำเร็จ พร้อมลงรับ!', 'success');
     };
@@ -493,7 +717,7 @@ async function updateInboundStampPreview() {
       receiveDate,
       receiveTime
     });
-    container.innerHTML = `<img src="${stamp1.dataUrl}" alt="ตัวอย่างตราปั้มหนังสือรับ" style="max-height: 82px; width: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); background: #ffffff;">`;
+    container.innerHTML = `<img src="${stamp1.dataUrl}" alt="ตัวอย่างตราปั้มหนังสือรับ" style="max-height: 105px; width: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); background: #ffffff;">`;
   } catch (err) {
     console.warn('Error rendering inbound stamp preview:', err);
   }
@@ -528,8 +752,8 @@ async function saveInboundDocument(e) {
     return;
   }
 
-  // If no file selected, offer auto sample
-  if (!AppState.selectedFile) {
+  // If no files selected, offer auto sample
+  if (!AppState.selectedFiles || AppState.selectedFiles.length === 0) {
     await generateSampleDoc();
   }
 
@@ -540,6 +764,8 @@ async function saveInboundDocument(e) {
   }
 
   try {
+    const primaryFile = AppState.selectedFiles[0];
+
     // 1. Render Stamp 1 Canvas
     const stamp1 = await StampEngine.renderStamp1Canvas({
       bookNo,
@@ -547,29 +773,38 @@ async function saveInboundDocument(e) {
       receiveTime
     });
 
-    let stampedDataUrl = null;
-    let stampedBytes = null;
+    let primaryStampedDataUrl = null;
 
-    // 2. Stamp immediately onto document
-    if (AppState.selectedFile.type === 'application/pdf') {
+    // 2. Stamp immediately onto primary document
+    if (primaryFile.type === 'application/pdf') {
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
-        pdfBytes: AppState.selectedFile.bytes,
+        pdfBytes: primaryFile.bytes,
         stamp1Canvas: stamp1.canvas
       });
 
-      stampedBytes = stampedPdfBytes;
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
-      stampedDataUrl = await blobToDataUrl(blob);
+      primaryStampedDataUrl = await blobToDataUrl(blob);
     } else {
       // Image stamping
       const stampedImg = await StampEngine.stampImageDocument({
-        imageSource: AppState.selectedFile.dataUrl,
+        imageSource: primaryFile.dataUrl,
         stamp1Canvas: stamp1.canvas
       });
-      stampedDataUrl = stampedImg.dataUrl;
+      primaryStampedDataUrl = stampedImg.dataUrl;
     }
 
-    // 3. Create document record object
+    // 3. Build processed files array
+    const filesList = AppState.selectedFiles.map((f, idx) => ({
+      id: 'f_' + Date.now() + '_' + idx,
+      name: f.name,
+      type: f.type,
+      size: f.size,
+      isPrimary: idx === 0,
+      originalDataUrl: f.dataUrl,
+      stampedDataUrl: idx === 0 ? primaryStampedDataUrl : null
+    }));
+
+    // 4. Create document record object
     const newRecord = {
       id: 'doc_' + Date.now(),
       orderNo: AppState.records.length + 1,
@@ -577,10 +812,11 @@ async function saveInboundDocument(e) {
       receiveDate,
       receiveTime,
       title,
-      fileName: AppState.selectedFile.name,
-      fileType: AppState.selectedFile.type,
-      originalDataUrl: AppState.selectedFile.dataUrl,
-      stampedDataUrl,
+      fileName: primaryFile.name,
+      fileType: primaryFile.type,
+      originalDataUrl: primaryFile.dataUrl,
+      stampedDataUrl: primaryStampedDataUrl,
+      files: filesList,
       status: 'รอเสนอ ผอ.', // Step 1 complete -> Next is Step 2
       step: 1,
       proposalData: null,
@@ -603,13 +839,15 @@ async function saveInboundDocument(e) {
     // Reset Form
     bookNoInput.value = '';
     docTitleInput.value = '';
-    clearSelectedFile();
+    clearSelectedFiles();
+    setReceiveDateToToday();
     updateLatestBookNoPlaceholder();
 
     renderAllTables();
     updateKpiStats();
 
-    showToast(`ลงรับหนังสือเลขที่ ${bookNo} สำเร็จ! ตราประทับถูกพิมพ์ลงบนไฟล์แนบเรียบร้อย`, 'success');
+    const fileCountMsg = filesList.length > 1 ? ` (${filesList.length} ไฟล์แนบ)` : '';
+    showToast(`ลงรับหนังสือเลขที่ ${bookNo} สำเร็จ! ตราประทับถูกพิมพ์ลงบนไฟล์หลักเรียบร้อย${fileCountMsg}`, 'success');
 
     // Prompt user to switch to "รอลงนาม"
     setTimeout(() => {
@@ -678,6 +916,7 @@ function renderInboundTable() {
       <td>
         <button class="btn btn-outline btn-sm" onclick="viewDocument('${r.id}')" title="เปิดดูเอกสารประทับตรา" style="padding: 3px 8px; font-size: 12px;">
           <i class="fa-solid fa-file-signature text-primary"></i> ${escapeHtml(r.fileName || 'ดูไฟล์')}
+          ${(r.files && r.files.length > 1) ? `<span style="background:#2563eb; color:#fff; border-radius:10px; font-size:10px; padding:1px 6px; margin-left:4px; font-weight:600;">${r.files.length} ไฟล์</span>` : ''}
         </button>
       </td>
       <td>${getStatusBadge(r.status)}</td>
@@ -783,6 +1022,7 @@ function renderPendingTable() {
                   title="ดูเอกสารประทับตรา"
                   style="margin-left: 4px;">
             <i class="fa-regular fa-eye"></i>
+            ${(r.files && r.files.length > 1) ? `<span style="background:#2563eb; color:#fff; border-radius:10px; font-size:10px; padding:1px 5px; margin-left:2px; font-weight:600;">${r.files.length}</span>` : ''}
           </button>
         </td>
       </tr>
@@ -858,18 +1098,23 @@ function downloadRecordDirectly(docId) {
   const doc = AppState.records.find(r => r.id === docId);
   if (!doc) return;
 
-  const dataUrl = doc.stampedDataUrl || doc.originalDataUrl;
-  if (!dataUrl) {
-    showToast('ไม่พบไฟล์เอกสารสำหรับดาวน์โหลด', 'warning');
-    return;
+  const files = (doc.files && doc.files.length > 0) ? doc.files : null;
+  if (files && files.length > 1) {
+    downloadAllDocFiles(doc);
+  } else {
+    const dataUrl = doc.stampedDataUrl || doc.originalDataUrl;
+    if (!dataUrl) {
+      showToast('ไม่พบไฟล์เอกสารสำหรับดาวน์โหลด', 'warning');
+      return;
+    }
+
+    const ext = doc.fileType === 'application/pdf' ? 'pdf' : 'png';
+    const cleanBookNo = (doc.bookNo || 'เอกสาร').replace(/[\/\\?%*:|"<>]/g, '-');
+    const fileName = `หนังสือรับ_${cleanBookNo}_ประทับตรา.${ext}`;
+
+    downloadFile(dataUrl, fileName);
+    showToast(`กำลังดาวน์โหลดเอกสารเลขที่: ${doc.bookNo}`, 'success');
   }
-
-  const ext = doc.fileType === 'application/pdf' ? 'pdf' : 'png';
-  const cleanBookNo = (doc.bookNo || 'เอกสาร').replace(/[\/\\?%*:|"<>]/g, '-');
-  const fileName = `หนังสือรับ_${cleanBookNo}_ประทับตรา.${ext}`;
-
-  downloadFile(dataUrl, fileName);
-  showToast(`กำลังดาวน์โหลดเอกสารเลขที่: ${doc.bookNo}`, 'success');
 }
 
 function filterRecords() {
@@ -1177,6 +1422,10 @@ async function handleSaveProposal() {
         stamp2Canvas: stamp2.canvas
       });
       doc.stampedDataUrl = stampedImg.dataUrl;
+    }
+
+    if (doc.files && doc.files.length > 0) {
+      doc.files[0].stampedDataUrl = doc.stampedDataUrl;
     }
 
     // Save proposal data to record
@@ -1488,6 +1737,10 @@ async function handleSaveDirectorComment() {
       doc.stampedDataUrl = stampedImg.dataUrl;
     }
 
+    if (doc.files && doc.files.length > 0) {
+      doc.files[0].stampedDataUrl = doc.stampedDataUrl;
+    }
+
     // Save director data
     doc.directorData = {
       checkboxes,
@@ -1556,13 +1809,14 @@ function adjustSigScale(type, delta) {
 }
 
 /* ==========================================================================
-   Document Viewer Modal
+   Document Viewer Modal (รองรับดูไฟล์แนบหลายไฟล์ & สลับไฟล์)
    ========================================================================== */
-function viewDocument(docId) {
+function viewDocument(docId, fileIndex = 0) {
   const doc = AppState.records.find(r => r.id === docId);
   if (!doc) return;
 
   AppState.currentDocId = docId;
+  AppState.activeViewFileIndex = fileIndex;
 
   document.getElementById('viewModalDocNo').textContent = doc.bookNo;
   document.getElementById('viewModalDocTitle').textContent = doc.title;
@@ -1570,10 +1824,44 @@ function viewDocument(docId) {
   const viewerContainer = document.getElementById('documentViewerContainer');
   if (!viewerContainer) return;
 
-  const dataUrl = doc.stampedDataUrl || doc.originalDataUrl;
+  const files = (doc.files && doc.files.length > 0) ? doc.files : [{
+    name: doc.fileName || 'หนังสือรับ.pdf',
+    type: doc.fileType || 'application/pdf',
+    originalDataUrl: doc.originalDataUrl,
+    stampedDataUrl: doc.stampedDataUrl,
+    isPrimary: true
+  }];
 
-  if (!dataUrl && doc.driveFileUrl) {
-    viewerContainer.innerHTML = `
+  const safeIdx = Math.max(0, Math.min(files.length - 1, fileIndex));
+  const currentFile = files[safeIdx];
+  const fileDataUrl = currentFile.stampedDataUrl || currentFile.originalDataUrl || doc.stampedDataUrl || doc.originalDataUrl;
+
+  let switcherHtml = '';
+  if (files.length > 1) {
+    switcherHtml = `
+      <div style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; background: #f8fafc; padding: 8px 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <span style="font-size: 12px; font-weight: 600; color: #1e40af; margin-right: 4px;">
+          <i class="fa-solid fa-paperclip"></i> รายการไฟล์แนบ (${files.length} ไฟล์):
+        </span>
+        ${files.map((f, idx) => {
+          const isActive = idx === safeIdx;
+          const isPdf = f.type === 'application/pdf';
+          const label = idx === 0 ? 'เอกสารหลัก (ประทับตรา)' : `เอกสารแนบ ${idx}`;
+          return `
+            <button type="button" class="file-switcher-pill ${isActive ? 'active' : ''}"
+              onclick="viewDocument('${docId}', ${idx})"
+              title="${escapeHtml(f.name)}">
+              <i class="fa-solid ${isPdf ? 'fa-file-pdf' : 'fa-file-image'}"></i>
+              <span>${label}</span>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  if (!fileDataUrl && doc.driveFileUrl) {
+    viewerContainer.innerHTML = switcherHtml + `
       <div style="text-align:center; padding: 40px;">
         <i class="fa-solid fa-cloud-arrow-down" style="font-size: 52px; color: #0284c7; margin-bottom: 16px;"></i>
         <h4 style="margin-bottom: 8px;">เอกสารจัดเก็บบน Google Drive</h4>
@@ -1583,33 +1871,91 @@ function viewDocument(docId) {
         </a>
       </div>
     `;
-    const downloadBtn = document.getElementById('btnDownloadDoc');
-    if (downloadBtn) {
-      downloadBtn.onclick = () => window.open(doc.driveFileUrl, '_blank');
-    }
+    setupDownloadButtons(doc, currentFile, files);
     openModal('documentViewModal');
     return;
   }
 
-  if (doc.fileType === 'application/pdf') {
-    viewerContainer.innerHTML = `
-      <iframe src="${dataUrl}" style="width:100%; height:550px; border:none; border-radius:8px;"></iframe>
+  let bodyHtml = '';
+  if (currentFile.type === 'application/pdf') {
+    bodyHtml = `
+      <iframe src="${fileDataUrl}" style="width:100%; height:550px; border:none; border-radius:8px;"></iframe>
     `;
   } else {
-    viewerContainer.innerHTML = `
+    bodyHtml = `
       <div style="text-align:center; padding:10px; max-height:550px; overflow:auto;">
-        <img src="${dataUrl}" style="max-width:100%; height:auto; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.15);">
+        <img src="${fileDataUrl}" alt="${escapeHtml(currentFile.name)}" style="max-width:100%; height:auto; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.15);">
       </div>
     `;
   }
 
-  // Setup download button
+  viewerContainer.innerHTML = switcherHtml + bodyHtml;
+  setupDownloadButtons(doc, currentFile, files);
+  openModal('documentViewModal');
+}
+
+function setupDownloadButtons(doc, currentFile, files) {
   const downloadBtn = document.getElementById('btnDownloadDoc');
+  let downloadAllBtn = document.getElementById('btnDownloadAllDocs');
+
   if (downloadBtn) {
-    downloadBtn.onclick = () => downloadFile(dataUrl, `หนังสือรับ_${doc.bookNo.replace(/[\/\\]/g, '-')}_ประทับตรา.${doc.fileType === 'application/pdf' ? 'pdf' : 'png'}`);
+    const isPrimary = !!currentFile.isPrimary || (files && files[0] === currentFile);
+    const isStamped = isPrimary && (currentFile.stampedDataUrl || doc.stampedDataUrl);
+    const shortName = currentFile.name.length > 25 ? (currentFile.name.slice(0, 22) + '...') : currentFile.name;
+    downloadBtn.innerHTML = `<i class="fa-solid fa-download"></i> ดาวน์โหลดไฟล์นี้ (${escapeHtml(shortName)})`;
+    downloadBtn.onclick = () => {
+      const dataUrl = currentFile.stampedDataUrl || currentFile.originalDataUrl || doc.stampedDataUrl || doc.originalDataUrl;
+      const ext = currentFile.type === 'application/pdf' ? 'pdf' : 'png';
+      const cleanBookNo = (doc.bookNo || 'เอกสาร').replace(/[\/\\?%*:|"<>]/g, '-');
+      const suffix = isStamped ? '_ประทับตรา' : '';
+      const fname = currentFile.name || `หนังสือรับ_${cleanBookNo}${suffix}.${ext}`;
+      downloadFile(dataUrl, fname);
+      showToast(`ดาวน์โหลดไฟล์: ${currentFile.name}`, 'success');
+    };
   }
 
-  openModal('documentViewModal');
+  const modalFooter = document.querySelector('#documentViewModal .modal-footer');
+  if (modalFooter) {
+    if (files && files.length > 1) {
+      if (!downloadAllBtn) {
+        downloadAllBtn = document.createElement('button');
+        downloadAllBtn.type = 'button';
+        downloadAllBtn.id = 'btnDownloadAllDocs';
+        downloadAllBtn.className = 'btn btn-success';
+        downloadAllBtn.style.marginLeft = '8px';
+        modalFooter.appendChild(downloadAllBtn);
+      }
+      downloadAllBtn.style.display = 'inline-flex';
+      downloadAllBtn.innerHTML = `<i class="fa-solid fa-file-zipper"></i> ดาวน์โหลดทั้งหมด (${files.length} ไฟล์)`;
+      downloadAllBtn.onclick = () => downloadAllDocFiles(doc);
+    } else if (downloadAllBtn) {
+      downloadAllBtn.style.display = 'none';
+    }
+  }
+}
+
+function downloadAllDocFiles(doc) {
+  const files = (doc.files && doc.files.length > 0) ? doc.files : [{
+    name: doc.fileName || 'หนังสือรับ.pdf',
+    type: doc.fileType || 'application/pdf',
+    originalDataUrl: doc.originalDataUrl,
+    stampedDataUrl: doc.stampedDataUrl,
+    isPrimary: true
+  }];
+
+  const cleanBookNo = (doc.bookNo || 'เอกสาร').replace(/[\/\\?%*:|"<>]/g, '-');
+  files.forEach((f, idx) => {
+    setTimeout(() => {
+      const dataUrl = f.stampedDataUrl || f.originalDataUrl || doc.stampedDataUrl || doc.originalDataUrl;
+      if (dataUrl) {
+        const ext = f.type === 'application/pdf' ? 'pdf' : 'png';
+        const suffix = (idx === 0) ? '_ประทับตรา' : `_แนบ${idx}`;
+        const name = f.name || `หนังสือรับ_${cleanBookNo}${suffix}.${ext}`;
+        downloadFile(dataUrl, name);
+      }
+    }, idx * 450);
+  });
+  showToast(`กำลังเริ่มดาวน์โหลดไฟล์ทั้งหมด (${files.length} ไฟล์)...`, 'info');
 }
 
 function downloadFile(dataUrl, fileName) {
@@ -1631,7 +1977,7 @@ function openEditModal(docId) {
   AppState.currentDocId = docId;
   document.getElementById('editDocId').value = doc.id;
   document.getElementById('editBookNo').value = doc.bookNo;
-  document.getElementById('editReceiveDate').value = doc.receiveDate;
+  setEditReceiveDate(doc.receiveDate);
   document.getElementById('editReceiveTime').value = doc.receiveTime;
   document.getElementById('editTitle').value = doc.title;
 
@@ -1799,6 +2145,14 @@ function saveRecordsToStorage() {
         }
         if (clone.stampedDataUrl && clone.stampedDataUrl.length > 50000) {
           clone.stampedDataUrl = '';
+        }
+        if (Array.isArray(clone.files)) {
+          clone.files = clone.files.map(f => {
+            const fClone = { ...f };
+            if (fClone.originalDataUrl && fClone.originalDataUrl.length > 50000) fClone.originalDataUrl = '';
+            if (fClone.stampedDataUrl && fClone.stampedDataUrl.length > 50000) fClone.stampedDataUrl = '';
+            return fClone;
+          });
         }
         return clone;
       });

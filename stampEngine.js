@@ -169,7 +169,7 @@ const StampEngine = (function () {
 
     // Text settings: Well-proportioned font ("ขนาดพอดี"), strictly ABOVE the dotted lines
     ctx.fillStyle = STAMP_BLUE;
-    ctx.font = 'bold 50px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
+    ctx.font = 'bold 54px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     ctx.textBaseline = 'bottom';
 
     // 1. เลขรับที่ (Dotted line at Y=430-441 -> baseline at Y=414, 16px clear space above dots)
@@ -437,13 +437,13 @@ const StampEngine = (function () {
       return await pdfDoc.embedPng(bytes);
     }
 
-    // 1. Stamp 1: Top Right (มุมบนขวา)
+    // 1. Stamp 1: Top Right (มุมบนขวา - ปรับขนาดให้ใหญ่ขึ้น ชัดเจน สง่างาม)
     if (stamp1Canvas) {
       const stamp1Image = await embedCanvasAsPng(stamp1Canvas);
-      // Desired width on page ~ 190 pt
-      const s1Width = Math.min(190, pageWidth * 0.32);
+      // Desired width on page ~ 230 pt (increased ~21% from 190 pt)
+      const s1Width = Math.min(235, pageWidth * 0.38);
       const s1Height = s1Width * (887 / 1774);
-      const margin = 20;
+      const margin = 18;
 
       page.drawImage(stamp1Image, {
         x: pageWidth - s1Width - margin,
@@ -513,11 +513,11 @@ const StampEngine = (function () {
     const W = canvas.width;
     const H = canvas.height;
 
-    // Stamp 1: Top Right
+    // Stamp 1: Top Right (ปรับขนาดให้ใหญ่ขึ้น)
     if (stamp1Canvas) {
-      const s1W = Math.max(340, W * 0.32);
+      const s1W = Math.max(410, W * 0.38);
       const s1H = s1W * (887 / 1774);
-      const margin = W * 0.03;
+      const margin = W * 0.025;
       ctx.drawImage(stamp1Canvas, W - s1W - margin, margin, s1W, s1H);
     }
 

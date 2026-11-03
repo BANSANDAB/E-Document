@@ -228,14 +228,32 @@
               </div>
             </div>
 
-            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ.) -->
+            <!-- วันที่รับ (วัน/เดือน/ปี พ.ศ. เลือกได้ ไม่ต้องกรอกเอง) -->
             <div class="form-group">
-              <label class="form-label" for="receiveDate">
-                <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span
-                  class="required">*</span>
-              </label>
-              <input type="text" id="receiveDate" class="form-control" placeholder="17/10/2569" required
-                oninput="updateInboundStampPreview()">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <label class="form-label" style="margin-bottom: 0;">
+                  <i class="fa-regular fa-calendar-days text-primary"></i> วันที่รับ (พ.ศ.) <span class="required">*</span>
+                </label>
+                <button type="button" class="btn-edit-sm" onclick="setReceiveDateToToday()" title="ตั้งเป็นวันปัจจุบัน"
+                  style="padding: 1px 8px; font-size: 11px;">
+                  <i class="fa-solid fa-calendar-day"></i> วันนี้
+                </button>
+              </div>
+              <div style="display: grid; grid-template-columns: 78px 1.3fr 90px; gap: 5px;">
+                <select id="receiveDay" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกวัน"
+                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
+                  <!-- วันที่ 01-31 -->
+                </select>
+                <select id="receiveMonth" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกเดือน"
+                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
+                  <!-- เดือน มกราคม - ธันวาคม -->
+                </select>
+                <select id="receiveYear" class="form-control" onchange="onReceiveDateSelectChange()" title="เลือกปี พ.ศ."
+                  style="padding: 6px 6px; font-size: 13px; font-weight: 500;">
+                  <!-- ปี พ.ศ. 2565 - 2575 -->
+                </select>
+              </div>
+              <input type="hidden" id="receiveDate" required>
             </div>
 
             <!-- เวลา (แสดงอัตโนมัติ) -->
@@ -259,15 +277,18 @@
             </div>
 
             <div class="form-group">
-              <label class="form-label">
-                <i class="fa-solid fa-paperclip text-primary"></i> ไฟล์แนบหนังสือรับ (.pdf หรือไฟล์ภาพ .jpg, .png)
-              </label>
-              <div class="file-dropzone" id="fileDropzone" style="padding: 6px 14px; min-height: 52px;">
-                <input type="file" id="docFileInput" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;">
-                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 20px;"></i>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label class="form-label" style="margin-bottom: 0;">
+                  <i class="fa-solid fa-paperclip text-primary"></i> ไฟล์แนบหนังสือรับ (แนบได้มากกว่า 1 ไฟล์)
+                </label>
+                <span id="fileCountBadge" style="font-size: 11px; color: #2563eb; font-weight: 600;"></span>
+              </div>
+              <div class="file-dropzone" id="fileDropzone" style="padding: 8px 14px; min-height: 52px;">
+                <input type="file" id="docFileInput" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;" multiple>
+                <i class="fa-solid fa-cloud-arrow-up" style="font-size: 22px;"></i>
                 <div>
-                  <p style="font-size: 12.5px; margin: 0;">ลากไฟล์ .pdf หรือภาพมาวาง หรือคลิกเพื่อเลือกไฟล์</p>
-                  <span style="font-size: 11px;">รองรับไฟล์เอกสาร PDF และไฟล์รูปภาพ (.pdf, .jpg, .png)</span>
+                  <p style="font-size: 12.5px; margin: 0;">ลากไฟล์มาวาง หรือคลิกเพื่อเลือกไฟล์ (แนบได้หลายไฟล์)</p>
+                  <span style="font-size: 11px;">รองรับ PDF และภาพ (.pdf, .jpg, .png) | ไฟล์แรกคือเอกสารหลักที่ประทับตรา</span>
                 </div>
               </div>
               <div id="selectedFilePreview"></div>
@@ -280,11 +301,11 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <span style="font-size: 12px; font-weight: 600; color: #1e40af;">
                 <i class="fa-solid fa-stamp text-primary"></i> ภาพตัวอย่างตราปั้มหนังสือรับมุมบนขวา
-                (ข้อความอยู่เหนือเส้นจุด ขนาดพอดี)
+                (ปรับขนาดใหญ่ขึ้น ชัดเจน ข้อความอยู่เหนือเส้นจุด)
               </span>
             </div>
             <div id="inboundStampPreviewContainer"
-              style="display: flex; justify-content: center; align-items: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 6px; min-height: 70px;">
+              style="display: flex; justify-content: center; align-items: center; background: #ffffff; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 8px; min-height: 95px;">
               <!-- Rendered via updateInboundStampPreview() -->
             </div>
           </div>
@@ -1104,8 +1125,13 @@
           <input type="text" id="editBookNo" class="form-control" required>
         </div>
         <div class="form-group">
-          <label class="form-label" for="editReceiveDate">วันที่รับ</label>
-          <input type="text" id="editReceiveDate" class="form-control" required>
+          <label class="form-label">วันที่รับ (วัน/เดือน/ปี พ.ศ.)</label>
+          <div style="display: grid; grid-template-columns: 80px 1.4fr 95px; gap: 6px;">
+            <select id="editReceiveDay" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกวัน" style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
+            <select id="editReceiveMonth" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกเดือน" style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
+            <select id="editReceiveYear" class="form-control" onchange="onEditReceiveDateChange()" title="เลือกปี พ.ศ." style="padding: 6px 8px; font-size: 13px; font-weight: 500;"></select>
+          </div>
+          <input type="hidden" id="editReceiveDate" required>
         </div>
         <div class="form-group">
           <label class="form-label" for="editReceiveTime">เวลา</label>

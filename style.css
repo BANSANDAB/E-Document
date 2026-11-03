@@ -770,6 +770,61 @@ body {
   color: #2563eb;
 }
 
+/* Multi-file Preview List */
+.file-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.file-preview-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.file-preview-item:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.file-switcher-pill {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.file-switcher-pill:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.file-switcher-pill.active {
+  background: #1e40af;
+  color: #ffffff;
+  border-color: #1e40af;
+  font-weight: 600;
+}
+
 /* Primary Action Buttons */
 .btn {
   font-family: var(--font-heading);

@@ -300,12 +300,26 @@ function getInboundRecords() {
 function saveInboundRecord(record) {
   const sheet = getInboundSheet();
   let fileUrl = '';
+  const cleanBookNo = String(record.bookNo || '').replace(/[\/\\]/g, '-');
 
-  // Save stamped file to Drive folder
-  if (record.stampedDataUrl) {
+  // Upload files to Google Drive folder (supports multiple files)
+  if (record.files && Array.isArray(record.files) && record.files.length > 0) {
+    const urls = [];
+    for (let i = 0; i < record.files.length; i++) {
+      const f = record.files[i];
+      const dataUrl = f.stampedDataUrl || f.originalDataUrl;
+      if (dataUrl) {
+        const prefix = (i === 0) ? ('หนังสือรับ_' + cleanBookNo) : ('หนังสือรับ_' + cleanBookNo + '_แนบ' + i);
+        const fname = prefix + '_' + (f.name || ('ไฟล์' + (i + 1)));
+        const url = uploadBase64FileToDrive(dataUrl, fname, f.type || 'application/pdf');
+        if (url) urls.push(url);
+      }
+    }
+    fileUrl = urls.join('\n');
+  } else if (record.stampedDataUrl) {
     fileUrl = uploadBase64FileToDrive(
       record.stampedDataUrl,
-      'หนังสือรับ_' + record.bookNo.replace(/[\/\\]/g, '-') + '.pdf',
+      'หนังสือรับ_' + cleanBookNo + '.pdf',
       record.fileType || 'application/pdf'
     );
   }
