@@ -35,7 +35,7 @@
   </script>
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25691104_1">
+  <link rel="stylesheet" href="style.css?v=25691104_2">
 </head>
 
 <body>
@@ -874,7 +874,7 @@
         <!-- Left: Live Stamp 2 Preview & Position Control -->
         <div class="preview-pane">
           <div class="preview-pane-header">
-            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มเสนอ ผอ.</span>
+            <span><i class="fa-solid fa-stamp text-primary"></i> ตัวอย่างตราปั้มเสนอ ผอ.</span>
             <span class="badge badge-info" style="font-size: 11px;"><i class="fa-solid fa-arrows-up-down-left-right"></i> ปรับตำแหน่งได้</span>
           </div>
           <div class="preview-canvas-container" id="proposalStampPreviewContainer">
@@ -1098,7 +1098,7 @@
         <!-- Left: Live Stamp 3 Preview & Position Control -->
         <div class="preview-pane">
           <div class="preview-pane-header">
-            <span><i class="fa-solid fa-eye text-primary"></i> ตัวอย่างตราปั้มความเห็น ผอ.</span>
+            <span><i class="fa-solid fa-stamp text-primary"></i> ตัวอย่างตราปั้มความเห็น ผอ.</span>
             <span class="badge badge-info" style="font-size: 11px;"><i class="fa-solid fa-arrows-up-down-left-right"></i> ปรับตำแหน่งได้</span>
           </div>
           <div class="preview-canvas-container" id="directorStampPreviewContainer">
@@ -1331,9 +1331,14 @@
             </p>
           </div>
         </div>
-        <button type="button" class="modal-close" onclick="closeModal('stampPositionModal')" style="color: #ffffff;">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-success pos-confirm-header-btn" onclick="confirmPositionModalSelection()" style="background: #16a34a; color: #ffffff; border: none; font-weight: 700; padding: 5px 14px; font-size: 12.5px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.25); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+            <i class="fa-solid fa-circle-check"></i> ยืนยันการปั๊มตรา
+          </button>
+          <button type="button" class="modal-close" onclick="closeModal('stampPositionModal')" style="color: #ffffff;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
       </div>
 
       <!-- Quick Toolbar: Multi-Page Navigation, Stamping Scope, Resizing & Presets -->
@@ -1416,7 +1421,7 @@
             </div>
           </div>
 
-          <!-- Position Lock & Remember Default -->
+          <!-- Position Lock, Remember Default & Confirm -->
           <div class="position-toolbar-group" style="margin-left: auto;">
             <button type="button" class="pos-lock-btn" id="btnPosLockToggle" onclick="togglePositionLock()" title="คลิกล็อค/ปลดล็อคตำแหน่งตราปั๊ม เพื่อป้องกันการเลื่อนหลุดเมื่อคลิกหรือเลื่อนดูเอกสารหลายหน้า">
               <i class="fa-solid fa-lock-open" id="iconPosLock"></i>
@@ -1424,6 +1429,9 @@
             </button>
             <button type="button" class="pos-save-default-btn" id="btnPosSaveDefault" onclick="savePositionModalAsDefault()" title="จำตำแหน่งและขนาดนี้ไว้ใช้เป็นค่าเริ่มต้นสำหรับเอกสารฉบับต่อไป">
               <i class="fa-solid fa-bookmark text-amber-500"></i> จำตำแหน่งนี้
+            </button>
+            <button type="button" class="pos-confirm-toolbar-btn" id="btnPosConfirmToolbar" onclick="confirmPositionModalSelection()" title="บันทึกและยืนยันตำแหน่งการปั๊มตรานี้">
+              <i class="fa-solid fa-circle-check"></i> ยืนยันการปั๊มตรา
             </button>
           </div>
         </div>
@@ -1470,15 +1478,15 @@
       </div>
 
       <!-- Footer: Position coordinates and confirm button -->
-      <div class="modal-footer" style="padding: 10px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+      <div class="modal-footer" style="padding: 10px 20px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
         <div style="font-size: 12.5px; color: #475569; display: flex; align-items: center; gap: 8px;">
           <i class="fa-solid fa-crosshairs text-primary"></i>
           <span id="positionCoordsDisplay">ตำแหน่ง: แนวนอน 65%, แนวตั้ง 3% (ขวาบน)</span>
         </div>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('stampPositionModal')">ยกเลิก</button>
-          <button type="button" class="btn btn-primary" onclick="confirmPositionModalSelection()">
-            <i class="fa-solid fa-check"></i> ใช้ตำแหน่งนี้
+          <button type="button" class="btn btn-success" onclick="confirmPositionModalSelection()" style="background: #16a34a; color: #ffffff; font-weight: 700; border: none; padding: 6px 16px; border-radius: 6px; box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35); display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-circle-check"></i> ยืนยันการปั๊มตรา
           </button>
         </div>
       </div>
@@ -1708,9 +1716,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691104_1"></script>
-  <script src="stampEngine.js?v=25691104_1"></script>
-  <script src="app.js?v=25691104_1"></script>
+  <script src="stampAssets.js?v=25691104_2"></script>
+  <script src="stampEngine.js?v=25691104_2"></script>
+  <script src="app.js?v=25691104_2"></script>
 </body>
 
 </html>

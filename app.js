@@ -1315,7 +1315,10 @@ function renderPendingTable() {
         <td style="font-weight: 600; color: #2563eb;">${escapeHtml(r.bookNo)}</td>
         <td>${escapeHtml(ThaiDateUtil.formatDisplayDate(r.receiveDate))}</td>
         <td>
-          <div style="font-weight: 500;">${escapeHtml(r.title)}</div>
+          <a href="javascript:void(0)" onclick="viewDocument('${r.id}')" title="คลิกเพื่อดูเอกสาร" style="font-weight: 500; color: #1e3a5f; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
+            <span>${escapeHtml(r.title)}</span>
+            ${(r.files && r.files.length > 1) ? `<span style="background:#e0e7ff; color:#3730a3; border-radius:10px; font-size:10.5px; padding:1px 6px; font-weight:600;">${r.files.length} ไฟล์</span>` : ''}
+          </a>
         </td>
         <td>
           ${isCompleted ? `
@@ -1341,15 +1344,6 @@ function renderPendingTable() {
                   title="บันทึกความคิดเห็น ผอ. (ตราปั้มที่ 3)"
                   style="margin-left: 4px;">
             <i class="fa-solid fa-stamp"></i> ความคิดเห็น ผอ.
-          </button>
-
-          <!-- ปุ่ม ดูเอกสาร -->
-          <button class="btn btn-outline btn-sm"
-                  onclick="viewDocument('${r.id}')"
-                  title="ดูเอกสารประทับตรา"
-                  style="margin-left: 4px;">
-            <i class="fa-regular fa-eye"></i>
-            ${(r.files && r.files.length > 1) ? `<span style="background:#2563eb; color:#fff; border-radius:10px; font-size:10px; padding:1px 5px; margin-left:2px; font-weight:600;">${r.files.length}</span>` : ''}
           </button>
         </td>
       </tr>
@@ -3137,7 +3131,7 @@ function confirmPositionModalSelection() {
     isLocked: !!ActivePositionPicker.isLocked
   };
 
-  let badgeLabel = '📍 กำหนดบนเอกสารแล้ว';
+  let badgeLabel = '✅ ยืนยันตำแหน่งแล้ว';
 
   if (ActivePositionPicker.placements.length > 1) {
     posObj.placements = ActivePositionPicker.placements.map(p => ({
@@ -3147,17 +3141,17 @@ function confirmPositionModalSelection() {
       scale: p.scale || posObj.scale,
       preset: 'custom'
     }));
-    badgeLabel = `📍 ปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(',')})`;
+    badgeLabel = `✅ ยืนยันปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(',')})`;
   } else if (ActivePositionPicker.pageScope === 'all') {
     posObj.pages = 'all';
     posObj.targetScope = 'all';
-    badgeLabel = `📍 ปั๊มทุกหน้า (${ActivePositionPicker.totalPages || 1} หน้า)`;
+    badgeLabel = `✅ ยืนยันปั๊มทุกหน้า (${ActivePositionPicker.totalPages || 1} หน้า)`;
   } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
     posObj.pages = [...ActivePositionPicker.customPages];
-    badgeLabel = `📍 ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
+    badgeLabel = `✅ ยืนยันปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
   } else {
     posObj.page = ActivePositionPicker.currentPage || 1;
-    badgeLabel = `📍 กำหนดบนหน้า ${posObj.page} แล้ว`;
+    badgeLabel = `✅ ยืนยันตำแหน่งบนหน้า ${posObj.page} แล้ว`;
   }
 
   if (ActivePositionPicker.isLocked) {
@@ -3181,7 +3175,12 @@ function confirmPositionModalSelection() {
     const formScaleTxt = document.getElementById('inboundStampScaleText');
     if (formScaleTxt) formScaleTxt.textContent = Math.round(posObj.scale * 100) + '%';
 
-    showToast(`บันทึกตำแหน่งตราปั้ม ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+    showToast(`✅ ยืนยันการปั๊มตรา ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+
+    const saveBtn = document.getElementById('saveInboundBtn');
+    if (saveBtn) {
+      saveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 
   } else if (type === 'proposal') {
     if (ActivePositionPicker.currentDoc) {
@@ -3193,7 +3192,7 @@ function confirmPositionModalSelection() {
     const propScaleVal = document.getElementById('propStampScaleVal');
     if (propScaleVal) propScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
 
-    showToast(`กำหนดตำแหน่งตราเสนอ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+    showToast(`✅ ยืนยันการปั๊มตราเสนอ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
 
   } else if (type === 'director') {
     if (ActivePositionPicker.currentDoc) {
@@ -3205,7 +3204,7 @@ function confirmPositionModalSelection() {
     const dirScaleVal = document.getElementById('dirStampScaleVal');
     if (dirScaleVal) dirScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
 
-    showToast(`กำหนดตำแหน่งตราสั่งการ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
+    showToast(`✅ ยืนยันการปั๊มตราสั่งการ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
   }
 
   closeModal('stampPositionModal');
