@@ -2451,6 +2451,7 @@ const ActivePositionPicker = {
   placements: [], // [ { id, page, percentX, percentY, scale } ]
   activePlacementIdx: 0,
   isDragging: false,
+  isLocked: false,
   dragStartX: 0,
   dragStartY: 0,
   stampStartLeft: 0,
@@ -2527,6 +2528,22 @@ async function openDocumentPositionSelector(type = 'inbound') {
   }
 
   ActivePositionPicker.currentDoc = targetDoc;
+
+  // Check if there is a saved default from localStorage
+  let defaultSaved = null;
+  try {
+    const rawDef = localStorage.getItem('EDOC_DEFAULT_STAMP_POS_' + type);
+    if (rawDef) defaultSaved = JSON.parse(rawDef);
+  } catch (_) {}
+
+  // If no document-specific position was saved, fall back to defaultSaved
+  if (!savedPos && defaultSaved) {
+    savedPos = defaultSaved;
+  }
+
+  ActivePositionPicker.isLocked = (savedPos && typeof savedPos.isLocked === 'boolean')
+    ? savedPos.isLocked
+    : (defaultSaved && typeof defaultSaved.isLocked === 'boolean' ? defaultSaved.isLocked : false);
 
   // Restore saved positions/placements if available
   if (savedPos && Array.isArray(savedPos.placements) && savedPos.placements.length > 0) {
@@ -2724,6 +2741,7 @@ async function openDocumentPositionSelector(type = 'inbound') {
 
     updatePositionModalStampCoordinates();
     initPositionModalListeners();
+    updatePositionLockUI();
 
   } catch (err) {
     console.error('Error rendering document in position modal:', err);
@@ -3059,6 +3077,10 @@ function updatePositionModalStampCoordinates() {
 }
 
 function applyPositionModalPreset(preset) {
+  if (ActivePositionPicker.isLocked) {
+    showToast('🔒 ตำแหน่งถูกล็อคอยู่ กรุณากดปลดล็อคก่อนปรับตำแหน่ง', 'warning');
+    return;
+  }
   const W = ActivePositionPicker.canvasWidth || 600;
   const H = ActivePositionPicker.canvasHeight || 800;
   const sW = ActivePositionPicker.stampWidth || (W * 0.36);
@@ -3094,6 +3116,10 @@ function applyPositionModalPreset(preset) {
 }
 
 function nudgePositionModal(deltaX, deltaY) {
+  if (ActivePositionPicker.isLocked) {
+    showToast('🔒 ตำแหน่งถูกล็อคอยู่ กรุณากดปลดล็อคก่อนปรับตำแหน่ง', 'warning');
+    return;
+  }
   ActivePositionPicker.percentX += (deltaX / 100);
   ActivePositionPicker.percentY += (deltaY / 100);
   updatePositionModalStampCoordinates();
@@ -3107,7 +3133,8 @@ function confirmPositionModalSelection() {
     preset: 'custom',
     scale: ActivePositionPicker.scale || 1.0,
     percentX: ActivePositionPicker.percentX,
-    percentY: ActivePositionPicker.percentY
+    percentY: ActivePositionPicker.percentY,
+    isLocked: !!ActivePositionPicker.isLocked
   };
 
   let badgeLabel = '📍 กำหนดบนเอกสารแล้ว';
@@ -3131,6 +3158,12 @@ function confirmPositionModalSelection() {
   } else {
     posObj.page = ActivePositionPicker.currentPage || 1;
     badgeLabel = `📍 กำหนดบนหน้า ${posObj.page} แล้ว`;
+  }
+
+  if (ActivePositionPicker.isLocked) {
+    try {
+      localStorage.setItem('EDOC_DEFAULT_STAMP_POS_' + type, JSON.stringify(posObj));
+    } catch (_) {}
   }
 
   if (type === 'inbound') {
@@ -3178,6 +3211,95 @@ function confirmPositionModalSelection() {
   closeModal('stampPositionModal');
 }
 
+function togglePositionLock(forceState) {
+  if (typeof forceState === 'boolean') {
+    ActivePositionPicker.isLocked = forceState;
+  } else {
+    ActivePositionPicker.isLocked = !ActivePositionPicker.isLocked;
+  }
+  updatePositionLockUI();
+  if (ActivePositionPicker.isLocked) {
+    showToast('🔒 ล็อคตำแหน่งตราปั๊มแล้ว (ไม่เคลื่อนที่เมื่อคลิกหรือเลื่อนดูเอกสาร)', 'info');
+  } else {
+    showToast('🔓 ปลดล็อคตำแหน่งแล้ว (คลิกหรือลากเพื่อย้ายตำแหน่งได้)', 'info');
+  }
+}
+
+function updatePositionLockUI() {
+  const isLocked = !!ActivePositionPicker.isLocked;
+  const btnToggle = document.getElementById('btnPosLockToggle');
+  const iconToggle = document.getElementById('iconPosLock');
+  const textToggle = document.getElementById('textPosLock');
+
+  const stampEl = document.getElementById('positionFloatingStamp');
+  const wrapperEl = document.getElementById('positionDocWrapper');
+  const handleLockIcon = document.getElementById('floatingStampLockIcon');
+  const handleLockText = document.getElementById('floatingStampLockText');
+  const dragIcon = document.getElementById('floatingStampDragIcon');
+
+  if (btnToggle) {
+    if (isLocked) {
+      btnToggle.classList.add('locked');
+      if (iconToggle) iconToggle.className = 'fa-solid fa-lock';
+      if (textToggle) textToggle.textContent = 'ล็อคตำแหน่งแล้ว';
+      btnToggle.title = 'คลิกเพื่อปลดล็อคตำแหน่งตราปั๊ม';
+    } else {
+      btnToggle.classList.remove('locked');
+      if (iconToggle) iconToggle.className = 'fa-solid fa-lock-open';
+      if (textToggle) textToggle.textContent = 'ปลดล็อค';
+      btnToggle.title = 'คลิกล็อคตำแหน่งตราปั๊ม ไม่ให้เลื่อนหลุด';
+    }
+  }
+
+  if (stampEl) {
+    if (isLocked) {
+      stampEl.classList.add('locked');
+      stampEl.title = 'ตำแหน่งถูกล็อคแล้ว (คลิกไอคอนกุญแจเพื่อปลดล็อค)';
+    } else {
+      stampEl.classList.remove('locked');
+      stampEl.title = 'คลิกค้างเพื่อลาก หรือคลิกบนเอกสารเพื่อย้ายตำแหน่ง';
+    }
+  }
+
+  if (wrapperEl) {
+    if (isLocked) {
+      wrapperEl.classList.add('locked');
+    } else {
+      wrapperEl.classList.remove('locked');
+    }
+  }
+
+  if (handleLockIcon) {
+    handleLockIcon.className = isLocked ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open';
+  }
+  if (handleLockText) {
+    handleLockText.textContent = isLocked ? 'ล็อคแล้ว' : 'ปลดล็อค';
+  }
+  if (dragIcon) {
+    dragIcon.className = isLocked ? 'fa-solid fa-shield-halved' : 'fa-solid fa-arrows-up-down-left-right';
+  }
+}
+
+function savePositionModalAsDefault() {
+  saveCurrentToActivePlacement();
+  const type = ActivePositionPicker.type;
+  const config = {
+    percentX: ActivePositionPicker.percentX,
+    percentY: ActivePositionPicker.percentY,
+    scale: ActivePositionPicker.scale || 1.0,
+    pageScope: ActivePositionPicker.pageScope,
+    isLocked: true
+  };
+  try {
+    localStorage.setItem('EDOC_DEFAULT_STAMP_POS_' + type, JSON.stringify(config));
+    togglePositionLock(true);
+    showToast('📌 บันทึกและล็อคตำแหน่งนี้เป็นค่าเริ่มต้นสำหรับเอกสารทุกฉบับเรียบร้อยแล้ว', 'success');
+  } catch (e) {
+    console.error('Error saving default position to localStorage:', e);
+    showToast('ไม่สามารถบันทึกค่าเริ่มต้นได้', 'error');
+  }
+}
+
 function initPositionModalListeners() {
   if (ActivePositionPicker.listenersAttached) return;
   ActivePositionPicker.listenersAttached = true;
@@ -3188,6 +3310,7 @@ function initPositionModalListeners() {
 
   // Click on document to jump stamp
   wrapper.addEventListener('click', (e) => {
+    if (ActivePositionPicker.isLocked) return;
     if (e.target === stampEl || stampEl.contains(e.target) || ActivePositionPicker.isDragging) return;
 
     const rect = wrapper.getBoundingClientRect();
@@ -3209,6 +3332,7 @@ function initPositionModalListeners() {
 
   // Pointer drag on stamp
   stampEl.addEventListener('pointerdown', (e) => {
+    if (ActivePositionPicker.isLocked) return;
     ActivePositionPicker.isDragging = true;
     ActivePositionPicker.dragStartX = e.clientX;
     ActivePositionPicker.dragStartY = e.clientY;

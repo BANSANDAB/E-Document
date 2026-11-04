@@ -35,7 +35,7 @@
   </script>
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25691103_3">
+  <link rel="stylesheet" href="style.css?v=25691104_1">
 </head>
 
 <body>
@@ -1415,6 +1415,17 @@
               <button type="button" class="nudge-btn-pos" onclick="nudgePositionModal(0, 2)" title="เลื่อนลง">▼</button>
             </div>
           </div>
+
+          <!-- Position Lock & Remember Default -->
+          <div class="position-toolbar-group" style="margin-left: auto;">
+            <button type="button" class="pos-lock-btn" id="btnPosLockToggle" onclick="togglePositionLock()" title="คลิกล็อค/ปลดล็อคตำแหน่งตราปั๊ม เพื่อป้องกันการเลื่อนหลุดเมื่อคลิกหรือเลื่อนดูเอกสารหลายหน้า">
+              <i class="fa-solid fa-lock-open" id="iconPosLock"></i>
+              <span id="textPosLock">ปลดล็อค</span>
+            </button>
+            <button type="button" class="pos-save-default-btn" id="btnPosSaveDefault" onclick="savePositionModalAsDefault()" title="จำตำแหน่งและขนาดนี้ไว้ใช้เป็นค่าเริ่มต้นสำหรับเอกสารฉบับต่อไป">
+              <i class="fa-solid fa-bookmark text-amber-500"></i> จำตำแหน่งนี้
+            </button>
+          </div>
         </div>
 
         <!-- Row 3: Active Placements Chips Bar (เมื่อมีมากกว่า 1 จุดปั๊ม) -->
@@ -1444,8 +1455,14 @@
           <!-- Floating Draggable Stamp Box -->
           <div id="positionFloatingStamp" class="position-floating-stamp" title="คลิกค้างเพื่อลาก หรือคลิกบนเอกสารเพื่อย้ายตำแหน่ง">
             <div class="floating-stamp-handle">
-              <i class="fa-solid fa-arrows-up-down-left-right"></i>
-              <span id="floatingStampLabel">ตราปั๊มรับเข้า</span>
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <i class="fa-solid fa-arrows-up-down-left-right" id="floatingStampDragIcon"></i>
+                <span id="floatingStampLabel">ตราปั๊มรับเข้า</span>
+              </div>
+              <span id="floatingStampLockBadge" class="floating-stamp-lock-badge" onclick="event.stopPropagation(); togglePositionLock();" title="คลิกเพื่อล็อค/ปลดล็อคตำแหน่ง">
+                <i class="fa-solid fa-lock-open" id="floatingStampLockIcon"></i>
+                <span id="floatingStampLockText">ปลดล็อค</span>
+              </span>
             </div>
             <div id="floatingStampCanvasHolder"></div>
           </div>
@@ -1691,9 +1708,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691103_6"></script>
-  <script src="stampEngine.js?v=25691103_6"></script>
-  <script src="app.js?v=25691103_6"></script>
+  <script src="stampAssets.js?v=25691104_1"></script>
+  <script src="stampEngine.js?v=25691104_1"></script>
+  <script src="app.js?v=25691104_1"></script>
 </body>
 
 </html>

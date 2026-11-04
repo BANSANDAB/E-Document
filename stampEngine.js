@@ -671,10 +671,10 @@ const StampEngine = (function () {
     // Load PDF with decryption support for encrypted/permission-restricted government PDFs
     let pdfDoc;
     try {
-      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true, password: '' });
+      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
     } catch (err1) {
       try {
-        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true, password: '' });
       } catch (err2) {
         pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
       }
