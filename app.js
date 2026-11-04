@@ -2659,26 +2659,35 @@ async function openDocumentPositionSelector(type = 'inbound') {
 
   // Restore saved positions/placements เฉพาะเมื่อมีการกำหนดไว้ในเอกสารฉบับนี้เท่านั้น
   if (savedPos && Array.isArray(savedPos.placements) && savedPos.placements.length > 0) {
-    ActivePositionPicker.placements = JSON.parse(JSON.stringify(savedPos.placements));
+    ActivePositionPicker.placements = savedPos.placements.map((p, idx) => ({
+      id: p.id || (Date.now() + idx),
+      page: Number(p.page) || 1,
+      percentX: typeof p.percentX === 'number' ? p.percentX : 0.6,
+      percentY: typeof p.percentY === 'number' ? p.percentY : 0.03,
+      scale: typeof p.scale === 'number' ? p.scale : (savedPos.scale || 1.0),
+      isLocked: !!p.isLocked,
+      preset: p.preset || 'custom'
+    }));
     ActivePositionPicker.activePlacementIdx = 0;
     const firstP = ActivePositionPicker.placements[0];
     ActivePositionPicker.currentPage = firstP.page || 1;
     ActivePositionPicker.percentX = firstP.percentX;
     ActivePositionPicker.percentY = firstP.percentY;
-    if (typeof firstP.scale === 'number') ActivePositionPicker.scale = firstP.scale;
-    ActivePositionPicker.pageScope = savedPos.pageScope || 'custom_pages';
-    ActivePositionPicker.isLocked = !!savedPos.isLocked;
+    ActivePositionPicker.scale = firstP.scale || 1.0;
+    ActivePositionPicker.pageScope = savedPos.pageScope || 'single';
+    ActivePositionPicker.isLocked = !!firstP.isLocked;
   } else if (savedPos && (savedPos.pages === 'all' || savedPos.targetScope === 'all')) {
     ActivePositionPicker.pageScope = 'all';
     ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
     ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
-    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.scale = typeof savedPos.scale === 'number' ? savedPos.scale : 1.0;
     ActivePositionPicker.placements = [{
       id: 1,
       page: 1,
       percentX: ActivePositionPicker.percentX,
       percentY: ActivePositionPicker.percentY,
-      scale: ActivePositionPicker.scale || 1.0,
+      scale: ActivePositionPicker.scale,
+      isLocked: !!savedPos.isLocked,
       preset: 'custom'
     }];
     ActivePositionPicker.activePlacementIdx = 0;
@@ -2690,13 +2699,14 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.currentPage = savedPos.pages[0] || 1;
     ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
     ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
-    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.scale = typeof savedPos.scale === 'number' ? savedPos.scale : 1.0;
     ActivePositionPicker.placements = savedPos.pages.map((pg, idx) => ({
       id: Date.now() + idx,
       page: Number(pg) || 1,
       percentX: ActivePositionPicker.percentX,
       percentY: ActivePositionPicker.percentY,
-      scale: ActivePositionPicker.scale || 1.0,
+      scale: ActivePositionPicker.scale,
+      isLocked: !!savedPos.isLocked,
       preset: 'custom'
     }));
     ActivePositionPicker.activePlacementIdx = 0;
@@ -2706,13 +2716,14 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.currentPage = Number(savedPos.page) || 1;
     ActivePositionPicker.percentX = savedPos.percentX;
     ActivePositionPicker.percentY = savedPos.percentY;
-    if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.scale = typeof savedPos.scale === 'number' ? savedPos.scale : 1.0;
     ActivePositionPicker.placements = [{
       id: 1,
       page: ActivePositionPicker.currentPage,
       percentX: ActivePositionPicker.percentX,
       percentY: ActivePositionPicker.percentY,
-      scale: ActivePositionPicker.scale || 1.0,
+      scale: ActivePositionPicker.scale,
+      isLocked: !!savedPos.isLocked,
       preset: 'custom'
     }];
     ActivePositionPicker.activePlacementIdx = 0;
@@ -2730,6 +2741,7 @@ async function openDocumentPositionSelector(type = 'inbound') {
       percentX: ActivePositionPicker.percentX,
       percentY: ActivePositionPicker.percentY,
       scale: 1.0,
+      isLocked: false,
       preset: 'custom'
     }];
     ActivePositionPicker.activePlacementIdx = 0;
@@ -2932,6 +2944,22 @@ async function onPositionPageSelectChange(val) {
   await changePositionModalPage(parseInt(val, 10));
 }
 
+// Helper to get currently active placement
+function getActivePlacement() {
+  if (!ActivePositionPicker.placements || ActivePositionPicker.placements.length === 0) return null;
+  const idx = ActivePositionPicker.activePlacementIdx;
+  if (idx >= 0 && idx < ActivePositionPicker.placements.length) {
+    return ActivePositionPicker.placements[idx];
+  }
+  return ActivePositionPicker.placements[0];
+}
+
+// Helper to check if the currently active point is locked
+function isCurrentPointLocked() {
+  const curP = getActivePlacement();
+  return !!(curP && curP.isLocked);
+}
+
 async function renderPositionModalPage(pageNum) {
   if (!ActivePositionPicker.pdfDoc) return;
 
@@ -2973,6 +3001,7 @@ async function renderPositionModalPage(pageNum) {
   syncPlacementForCurrentPage();
   updatePositionModalStampDimensions();
   updatePositionModalStampCoordinates();
+  updatePositionLockUI();
   updatePlacementsBarUI();
 }
 
@@ -3024,11 +3053,18 @@ function toggleCustomPageSelection(pageNum, isChecked) {
 }
 
 function onPositionModalScaleInput(val) {
+  if (isCurrentPointLocked()) {
+    showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ กรุณาปลดล็อคก่อนปรับขนาด`, 'warning');
+    const curP = getActivePlacement();
+    syncScaleSliderUI(curP ? curP.scale : ActivePositionPicker.scale);
+    return;
+  }
   const scale = Math.max(0.5, Math.min(2.0, parseFloat(val) || 1.0));
   ActivePositionPicker.scale = scale;
   syncScaleSliderUI(scale);
   updatePositionModalStampDimensions();
   saveCurrentToActivePlacement();
+  updatePlacementsBarUI();
   autoStagePlacementSettings();
 }
 
@@ -3073,27 +3109,21 @@ function syncPlacementForCurrentPage() {
   const curPage = ActivePositionPicker.currentPage;
   const type = ActivePositionPicker.type;
 
-  // กรณีมีเพียง 1 จุด และไม่ได้กดล็อคตำแหน่งไว้: เมื่อเปิดดูหน้าใด ให้จุดปั๊มเลื่อนตามมาแสดงบนหน้านั้น
-  if (ActivePositionPicker.placements.length <= 1 && !ActivePositionPicker.isLocked) {
-    if (ActivePositionPicker.placements.length === 1) {
-      ActivePositionPicker.placements[0].page = curPage;
-    }
-    ActivePositionPicker.activePlacementIdx = 0;
-    if (stampEl) stampEl.style.display = 'block';
-    if (bannerEl) bannerEl.style.display = 'none';
-    if (labelEl) {
-      labelEl.textContent = (type === 'inbound') ? `ตราปั๊มรับเข้า (หน้า ${curPage})` : ((type === 'proposal') ? `ตราเสนอ ผอ. (หน้า ${curPage})` : `ตราสั่งการ ผอ. (หน้า ${curPage})`);
-    }
-    return;
+  // ค้นหาจุดปั๊มที่อยู่ในหน้านี้
+  // 1. ตรวจสอบว่า activePlacementIdx เดิม อยู่ในหน้านี้หรือไม่
+  let targetIdx = -1;
+  const curActiveP = getActivePlacement();
+  if (curActiveP && curActiveP.page === curPage) {
+    targetIdx = ActivePositionPicker.activePlacementIdx;
+  } else {
+    // 2. ถ้าไม่อยู่ ให้ค้นหาจุดแรกที่อยู่บนหน้านี้
+    targetIdx = ActivePositionPicker.placements.findIndex(p => p.page === curPage);
   }
 
-  // กรณีมีหลายจุดปั๊ม หรือจุดเดียวที่ล็อคตำแหน่งไว้:
-  // ค้นหาว่าในหน้านี้มีจุดปั๊มที่กำหนดไว้หรือไม่
-  const foundIdx = ActivePositionPicker.placements.findIndex(p => p.page === curPage);
-  if (foundIdx !== -1) {
-    // หน้านี้มีจุดปั๊มที่กำหนดไว้: แสดงตราปั๊มและโหลดพิกัดของจุดนั้น
-    ActivePositionPicker.activePlacementIdx = foundIdx;
-    const p = ActivePositionPicker.placements[foundIdx];
+  if (targetIdx !== -1) {
+    // หน้านี้มีจุดปั๊ม: แสดงกล่องตราปั๊มและโหลดพิกัดของจุดนั้น
+    ActivePositionPicker.activePlacementIdx = targetIdx;
+    const p = ActivePositionPicker.placements[targetIdx];
     ActivePositionPicker.percentX = p.percentX;
     ActivePositionPicker.percentY = p.percentY;
     if (typeof p.scale === 'number') {
@@ -3103,11 +3133,12 @@ function syncPlacementForCurrentPage() {
     if (stampEl) stampEl.style.display = 'block';
     if (bannerEl) bannerEl.style.display = 'none';
     if (labelEl) {
-      labelEl.textContent = `ตราปั๊มจุดที่ ${foundIdx + 1} (หน้า ${curPage})`;
+      const typeLabel = (type === 'inbound') ? 'ตราปั๊มรับเข้า' : ((type === 'proposal') ? 'ตราเสนอ ผอ.' : 'ตราสั่งการ ผอ.');
+      labelEl.textContent = `${typeLabel} จุดที่ ${targetIdx + 1} (หน้า ${curPage})`;
     }
   } else {
-    // หน้านี้ยังไม่มีจุดปั๊ม: ซ่อนกล่องตราปั๊มลอย และแสดงแถบแจ้งเตือนพร้อมปุ่มเพิ่มจุดปั๊มบนหน้านี้
-    // สำคัญ: ห้ามเปลี่ยน page ของจุดเดิมเด็ดขาด เพื่อป้องกันตำแหน่งหน้าเดิมเสียหาย!
+    // หน้านี้ยังไม่มีจุดปั๊ม: ซ่อนกล่องตราปั๊มลอย และแสดงแถบแจ้งเตือน
+    // สำคัญมาก: ห้ามแตะต้องหรือเปลี่ยน page ของจุดเดิมเด็ดขาด เพื่อป้องกันจุดปั๊มหน้าเดิมเลื่อนมากระจุกหน้าเดียวกัน!
     if (stampEl) stampEl.style.display = 'none';
     if (bannerEl) {
       bannerEl.style.display = 'flex';
@@ -3115,6 +3146,8 @@ function syncPlacementForCurrentPage() {
       if (pageNotice) pageNotice.textContent = curPage;
     }
   }
+
+  updatePositionLockUI();
 }
 
 function updatePlacementsBarUI() {
@@ -3130,60 +3163,91 @@ function updatePlacementsBarUI() {
     if (delBtn) delBtn.style.display = 'inline-flex';
 
     listEl.innerHTML = ActivePositionPicker.placements.map((p, idx) => {
-      const isActive = idx === ActivePositionPicker.activePlacementIdx && p.page === ActivePositionPicker.currentPage;
+      const isSelected = (idx === ActivePositionPicker.activePlacementIdx);
+      const isLocked = !!p.isLocked;
+      let classes = ['pos-placement-pill'];
+      if (isSelected) classes.push('active');
+      if (isLocked) classes.push('pill-locked');
+
+      const lockIcon = isLocked
+        ? '<i class="fa-solid fa-lock" style="color: #16a34a;" title="ล็อคจุดนี้แล้ว"></i>'
+        : '<i class="fa-solid fa-lock-open" style="color: #94a3b8;" title="จุดนี้ปลดล็อคอยู่"></i>';
+
       return `
-        <span class="pos-placement-pill ${isActive ? 'active' : ''}" onclick="selectStampPlacement(${idx})" title="คลิกเพื่อไปยังหน้า ${p.page || 1} และปรับตำแหน่งจุดที่ ${idx + 1}">
-          <i class="fa-solid fa-stamp"></i> จุดที่ ${idx + 1} (หน้า ${p.page || 1}) ${Math.round((p.scale || 1) * 100)}%
+        <span class="${classes.join(' ')}" onclick="selectStampPlacement(${idx})" title="คลิกเพื่อเลือกจุดที่ ${idx + 1} (หน้า ${p.page || 1}) - ${isLocked ? 'ล็อคอยู่' : 'ปลดล็อค'}">
+          ${lockIcon}
+          <span>จุดที่ ${idx + 1} (หน้า ${p.page || 1})</span>
+          <span style="font-size: 10px; opacity: 0.85;">${Math.round((p.scale || 1) * 100)}%</span>
         </span>
       `;
     }).join('');
 
     // อัพเดทดรอปดาวน์ "ย้ายจุดนี้ไปหน้า"
     if (moveSelect) {
-      const curActiveP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+      const curActiveP = getActivePlacement();
       const curPPage = curActiveP ? (curActiveP.page || 1) : 1;
       const totalPages = ActivePositionPicker.totalPages || 1;
       moveSelect.innerHTML = Array.from({ length: totalPages }, (_, i) => {
         const pg = i + 1;
         return `<option value="${pg}" ${pg === curPPage ? 'selected' : ''}>หน้า ${pg}</option>`;
       }).join('');
+      moveSelect.disabled = !!(curActiveP && curActiveP.isLocked);
     }
   } else {
     container.style.display = 'none';
     if (delBtn) delBtn.style.display = 'none';
   }
+
+  // อัพเดทปุ่มล็อคทุกจุด
+  const btnLockAll = document.getElementById('btnPosLockAll');
+  const iconLockAll = document.getElementById('iconLockAll');
+  const textLockAll = document.getElementById('textLockAll');
+  if (btnLockAll && ActivePositionPicker.placements && ActivePositionPicker.placements.length > 0) {
+    const allLocked = ActivePositionPicker.placements.every(p => !!p.isLocked);
+    if (allLocked) {
+      btnLockAll.style.background = '#dcfce7';
+      btnLockAll.style.borderColor = '#16a34a';
+      btnLockAll.style.color = '#15803d';
+      if (iconLockAll) iconLockAll.className = 'fa-solid fa-lock';
+      if (textLockAll) textLockAll.textContent = 'ปลดล็อคทุกจุด';
+    } else {
+      btnLockAll.style.background = '#f0fdf4';
+      btnLockAll.style.borderColor = '#86efac';
+      btnLockAll.style.color = '#166534';
+      if (iconLockAll) iconLockAll.className = 'fa-solid fa-lock';
+      if (textLockAll) textLockAll.textContent = 'ล็อคทุกจุด';
+    }
+  }
 }
 
-function addNewStampPlacement(targetPage) {
+function addNewStampPlacement(targetPage, customPercentX, customPercentY) {
   saveCurrentToActivePlacement();
 
   const page = Number(targetPage) || ActivePositionPicker.currentPage || 1;
-
-  if (ActivePositionPicker.placements.length === 0) {
-    ActivePositionPicker.placements.push({
-      id: 1,
-      page: page,
-      percentX: ActivePositionPicker.percentX,
-      percentY: ActivePositionPicker.percentY,
-      scale: ActivePositionPicker.scale || 1.0,
-      preset: 'custom'
-    });
-  }
-
   const newIdx = ActivePositionPicker.placements.length;
+  const type = ActivePositionPicker.type;
+
+  const defaultScale = ActivePositionPicker.scale || 1.0;
+  const px = (typeof customPercentX === 'number') ? customPercentX : ((type === 'inbound') ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
+  const py = (typeof customPercentY === 'number') ? customPercentY : ((type === 'inbound') ? 0.03 : 0.60);
+
   const newPlacement = {
-    id: Date.now(),
+    id: Date.now() + Math.floor(Math.random() * 1000),
     page: page,
-    percentX: (ActivePositionPicker.type === 'inbound') ? 0.60 : (ActivePositionPicker.type === 'proposal' ? 0.05 : 0.58),
-    percentY: (ActivePositionPicker.type === 'inbound') ? 0.03 : 0.60,
-    scale: ActivePositionPicker.scale || 1.0,
-    preset: 'custom'
+    percentX: px,
+    percentY: py,
+    scale: defaultScale,
+    preset: 'custom',
+    isLocked: false // จุดใหม่เริ่มต้นด้วยสถานะปลดล็อคเสมอ เพื่อให้ปรับตำแหน่งได้ทันที
   };
 
   ActivePositionPicker.placements.push(newPlacement);
   ActivePositionPicker.activePlacementIdx = newIdx;
-  ActivePositionPicker.percentX = newPlacement.percentX;
-  ActivePositionPicker.percentY = newPlacement.percentY;
+  ActivePositionPicker.percentX = px;
+  ActivePositionPicker.percentY = py;
+  ActivePositionPicker.scale = defaultScale;
+
+  syncScaleSliderUI(defaultScale);
 
   if (page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
     renderPositionModalPage(page);
@@ -3194,31 +3258,40 @@ function addNewStampPlacement(targetPage) {
     if (bannerEl) bannerEl.style.display = 'none';
     updatePositionModalStampDimensions();
     updatePositionModalStampCoordinates();
+    updatePositionLockUI();
     updatePlacementsBarUI();
   }
 
   autoStagePlacementSettings();
-  showToast(`เพิ่มตำแหน่งตราปั๊มจุดที่ ${newIdx + 1} บนหน้า ${page} เรียบร้อยแล้ว (สามารถลากย้ายและปรับขนาดย่อ-ขยายได้)`, 'success');
+  showToast(`เพิ่มตำแหน่งตราปั๊มจุดที่ ${newIdx + 1} บนหน้า ${page} เรียบร้อยแล้ว (สามารถลากย้ายและปรับย่อ-ขยายได้)`, 'success');
 }
 
 function moveActivePlacementToPage(targetPage) {
   const pageNum = parseInt(targetPage, 10);
   if (isNaN(pageNum) || pageNum < 1 || pageNum > (ActivePositionPicker.totalPages || 1)) return;
-  if (ActivePositionPicker.placements.length > 0) {
-    const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
-    if (curP) {
-      curP.page = pageNum;
-      if (pageNum !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
-        renderPositionModalPage(pageNum);
-      } else {
-        syncPlacementForCurrentPage();
-        updatePositionModalStampCoordinates();
-        updatePlacementsBarUI();
-      }
-      autoStagePlacementSettings();
-      showToast(`ย้ายตราปั๊มจุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ไปยังหน้า ${pageNum} เรียบร้อยแล้ว`, 'success');
-    }
+
+  const curP = getActivePlacement();
+  if (!curP) return;
+
+  if (curP.isLocked) {
+    showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ กรุณาปลดล็อคก่อนย้ายไปหน้าอื่น`, 'warning');
+    return;
   }
+
+  const oldPage = curP.page || 1;
+  curP.page = pageNum;
+
+  if (pageNum !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
+    renderPositionModalPage(pageNum);
+  } else {
+    syncPlacementForCurrentPage();
+    updatePositionModalStampCoordinates();
+    updatePositionLockUI();
+    updatePlacementsBarUI();
+  }
+
+  autoStagePlacementSettings();
+  showToast(`ย้ายตราปั๊มจุดที่ ${ActivePositionPicker.activePlacementIdx + 1} จากหน้า ${oldPage} ไปยังหน้า ${pageNum} เรียบร้อยแล้ว`, 'success');
 }
 
 function selectStampPlacement(index) {
@@ -3231,19 +3304,23 @@ function selectStampPlacement(index) {
   ActivePositionPicker.percentY = p.percentY;
   ActivePositionPicker.scale = p.scale || 1.0;
   syncScaleSliderUI(ActivePositionPicker.scale);
-  updatePositionModalStampDimensions();
 
   if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
     renderPositionModalPage(p.page);
   } else {
     syncPlacementForCurrentPage();
+    updatePositionModalStampDimensions();
     updatePositionModalStampCoordinates();
+    updatePositionLockUI();
     updatePlacementsBarUI();
   }
 }
 
 function deleteActiveStampPlacement() {
-  if (ActivePositionPicker.placements.length <= 1) return;
+  if (ActivePositionPicker.placements.length <= 1) {
+    showToast('ต้องมีตราปั๊มอย่างน้อย 1 จุดในเอกสาร', 'warning');
+    return;
+  }
   const idx = ActivePositionPicker.activePlacementIdx;
   ActivePositionPicker.placements.splice(idx, 1);
   ActivePositionPicker.activePlacementIdx = Math.max(0, idx - 1);
@@ -3252,28 +3329,27 @@ function deleteActiveStampPlacement() {
   ActivePositionPicker.percentY = p.percentY;
   ActivePositionPicker.scale = p.scale || 1.0;
   syncScaleSliderUI(ActivePositionPicker.scale);
-  updatePositionModalStampDimensions();
 
   if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
     renderPositionModalPage(p.page);
   } else {
     syncPlacementForCurrentPage();
+    updatePositionModalStampDimensions();
     updatePositionModalStampCoordinates();
+    updatePositionLockUI();
     updatePlacementsBarUI();
   }
   autoStagePlacementSettings();
-  showToast('ลบจุดปั๊มเรียบร้อยแล้ว', 'info');
+  showToast(`ลบจุดปั๊มเรียบร้อยแล้ว (เหลือ ${ActivePositionPicker.placements.length} จุด)`, 'info');
 }
 
 function saveCurrentToActivePlacement() {
-  if (ActivePositionPicker.placements.length > 0) {
-    const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
-    if (curP) {
-      // หมายเหตุ: บันทึกเฉพาะตำแหน่ง X/Y และขนาดสเกล ไม่ทับหมายเลขหน้าของจุดเดิม
-      curP.percentX = ActivePositionPicker.percentX;
-      curP.percentY = ActivePositionPicker.percentY;
-      curP.scale = ActivePositionPicker.scale;
-    }
+  const curP = getActivePlacement();
+  if (curP) {
+    // บันทึกเฉพาะพิกัด X/Y และขนาดสเกล ไม่เปลี่ยนหรือทับหมายเลขหน้าของจุดเดิมเด็ดขาด
+    curP.percentX = ActivePositionPicker.percentX;
+    curP.percentY = ActivePositionPicker.percentY;
+    curP.scale = ActivePositionPicker.scale;
   }
 }
 
@@ -3311,21 +3387,23 @@ function updatePositionModalStampCoordinates() {
 
   let pageText = `หน้า ${ActivePositionPicker.currentPage}`;
   if (ActivePositionPicker.placements.length > 1) {
-    pageText = `ปั๊ม ${ActivePositionPicker.placements.length} จุด (${ActivePositionPicker.placements.map((p, i) => `จุดที่ ${i+1}: น.${p.page}`).join(', ')})`;
+    pageText = `ปั๊ม ${ActivePositionPicker.placements.length} จุด (${ActivePositionPicker.placements.map((p, i) => `จุดที่ ${i+1}: น.${p.page}${p.isLocked ? '🔒' : ''}`).join(', ')})`;
   } else if (ActivePositionPicker.pageScope === 'all') {
     pageText = `ปั๊มทุกหน้า (1-${ActivePositionPicker.totalPages})`;
   } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
     pageText = `ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
   }
 
+  const curP = getActivePlacement();
+  const lockStatusText = (curP && curP.isLocked) ? '🔒 ล็อคแล้ว' : '🔓 ปลดล็อค';
   if (coordsDisplay) {
-    coordsDisplay.textContent = `${pageText} | ตำแหน่ง: X:${pctX}%, Y:${pctY}% (${desc}) | ขนาด: ${scalePct}%`;
+    coordsDisplay.textContent = `${pageText} | ${lockStatusText} | ตำแหน่ง: X:${pctX}%, Y:${pctY}% (${desc}) | ขนาด: ${scalePct}%`;
   }
 }
 
 function applyPositionModalPreset(preset) {
-  if (ActivePositionPicker.isLocked) {
-    showToast('🔒 ตำแหน่งถูกล็อคอยู่ กรุณากดปลดล็อคก่อนปรับตำแหน่ง', 'warning');
+  if (isCurrentPointLocked()) {
+    showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ กรุณาปลดล็อคก่อนปรับตำแหน่ง`, 'warning');
     return;
   }
   const W = ActivePositionPicker.canvasWidth || 600;
@@ -3364,8 +3442,8 @@ function applyPositionModalPreset(preset) {
 }
 
 function nudgePositionModal(deltaX, deltaY) {
-  if (ActivePositionPicker.isLocked) {
-    showToast('🔒 ตำแหน่งถูกล็อคอยู่ กรุณากดปลดล็อคก่อนปรับตำแหน่ง', 'warning');
+  if (isCurrentPointLocked()) {
+    showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ กรุณาปลดล็อคก่อนปรับตำแหน่ง`, 'warning');
     return;
   }
   ActivePositionPicker.percentX += (deltaX / 100);
@@ -3383,7 +3461,6 @@ function autoStagePlacementSettings() {
     scale: ActivePositionPicker.scale || 1.0,
     percentX: ActivePositionPicker.percentX,
     percentY: ActivePositionPicker.percentY,
-    isLocked: !!ActivePositionPicker.isLocked,
     page: ActivePositionPicker.currentPage || 1
   };
 
@@ -3398,18 +3475,24 @@ function autoStagePlacementSettings() {
     badgeLabel = `✅ ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
   } else if (ActivePositionPicker.placements && ActivePositionPicker.placements.length > 0) {
     posObj.placements = ActivePositionPicker.placements.map(p => ({
+      id: p.id,
       page: Number(p.page) || 1,
       percentX: typeof p.percentX === 'number' ? p.percentX : ActivePositionPicker.percentX,
       percentY: typeof p.percentY === 'number' ? p.percentY : ActivePositionPicker.percentY,
       scale: typeof p.scale === 'number' ? p.scale : posObj.scale,
-      preset: 'custom'
+      isLocked: !!p.isLocked,
+      preset: p.preset || 'custom'
     }));
+
+    posObj.isLocked = posObj.placements.every(p => !!p.isLocked);
+
     if (posObj.placements.length > 1) {
       posObj.page = posObj.placements[0].page;
-      badgeLabel = `✅ ปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(', ')})`;
+      badgeLabel = `✅ ปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map((p, i) => `จุด${i+1}:น.${p.page}${p.isLocked ? '🔒' : ''}`).join(', ')})`;
     } else {
       posObj.page = posObj.placements[0].page;
-      badgeLabel = `✅ ปั๊มหน้า ${posObj.page}`;
+      const singleLock = posObj.placements[0].isLocked ? ' 🔒' : '';
+      badgeLabel = `✅ ปั๊มหน้า ${posObj.page}${singleLock}`;
     }
   } else {
     posObj.page = ActivePositionPicker.currentPage || 1;
@@ -3469,22 +3552,52 @@ function confirmPositionModalSelection() {
 }
 
 function togglePositionLock(forceState) {
-  if (typeof forceState === 'boolean') {
-    ActivePositionPicker.isLocked = forceState;
-  } else {
-    ActivePositionPicker.isLocked = !ActivePositionPicker.isLocked;
-  }
+  const curP = getActivePlacement();
+  if (!curP) return;
+
+  const targetState = (typeof forceState === 'boolean') ? forceState : !curP.isLocked;
+  curP.isLocked = targetState;
+
   updatePositionLockUI();
+  updatePlacementsBarUI();
   autoStagePlacementSettings();
-  if (ActivePositionPicker.isLocked) {
-    showToast('🔒 ล็อคตำแหน่งตราปั๊มทุกจุดเรียบร้อยแล้ว (ไม่เคลื่อนที่เมื่อคลิกหรือเปิดดูหน้าอื่น)', 'info');
+
+  const ptNumber = ActivePositionPicker.activePlacementIdx + 1;
+  const pgNumber = curP.page || ActivePositionPicker.currentPage || 1;
+  if (targetState) {
+    showToast(`🔒 ล็อคตำแหน่งตราปั๊มจุดที่ ${ptNumber} (หน้า ${pgNumber}) เรียบร้อยแล้ว (จุดนี้จะไม่เลื่อนหลุด)`, 'info');
   } else {
-    showToast('🔓 ปลดล็อคตำแหน่งแล้ว (คลิกหรือลากเพื่อย้ายตำแหน่งได้)', 'info');
+    showToast(`🔓 ปลดล็อคตำแหน่งตราปั๊มจุดที่ ${ptNumber} (หน้า ${pgNumber}) แล้ว (ลากหรือคลิกเพื่อย้ายได้)`, 'info');
+  }
+}
+
+function toggleLockAllPoints() {
+  if (!ActivePositionPicker.placements || ActivePositionPicker.placements.length === 0) return;
+
+  const allLocked = ActivePositionPicker.placements.every(p => !!p.isLocked);
+  const nextState = !allLocked;
+
+  ActivePositionPicker.placements.forEach(p => {
+    p.isLocked = nextState;
+  });
+
+  updatePositionLockUI();
+  updatePlacementsBarUI();
+  autoStagePlacementSettings();
+
+  if (nextState) {
+    showToast(`🔒 ล็อคตำแหน่งตราปั๊มทุกจุด (${ActivePositionPicker.placements.length} จุด) เรียบร้อยแล้ว`, 'info');
+  } else {
+    showToast(`🔓 ปลดล็อคตำแหน่งตราปั๊มทุกจุดเรียบร้อยแล้ว`, 'info');
   }
 }
 
 function updatePositionLockUI() {
-  const isLocked = !!ActivePositionPicker.isLocked;
+  const curP = getActivePlacement();
+  const isLocked = !!(curP && curP.isLocked);
+  const activeIdx = ActivePositionPicker.activePlacementIdx;
+  const ptLabel = `จุดที่ ${activeIdx + 1}`;
+
   const btnToggle = document.getElementById('btnPosLockToggle');
   const iconToggle = document.getElementById('iconPosLock');
   const textToggle = document.getElementById('textPosLock');
@@ -3494,28 +3607,29 @@ function updatePositionLockUI() {
   const handleLockIcon = document.getElementById('floatingStampLockIcon');
   const handleLockText = document.getElementById('floatingStampLockText');
   const dragIcon = document.getElementById('floatingStampDragIcon');
+  const moveSelect = document.getElementById('posMovePlacementPageSelect');
 
   if (btnToggle) {
     if (isLocked) {
       btnToggle.classList.add('locked');
       if (iconToggle) iconToggle.className = 'fa-solid fa-lock';
-      if (textToggle) textToggle.textContent = 'ล็อคตำแหน่งแล้ว';
-      btnToggle.title = 'คลิกเพื่อปลดล็อคตำแหน่งตราปั๊ม';
+      if (textToggle) textToggle.textContent = `ล็อค${ptLabel}แล้ว`;
+      btnToggle.title = `คลิกเพื่อปลดล็อค ${ptLabel}`;
     } else {
       btnToggle.classList.remove('locked');
       if (iconToggle) iconToggle.className = 'fa-solid fa-lock-open';
-      if (textToggle) textToggle.textContent = 'ปลดล็อค';
-      btnToggle.title = 'คลิกล็อคตำแหน่งตราปั๊ม ไม่ให้เลื่อนหลุด';
+      if (textToggle) textToggle.textContent = `ปลดล็อค${ptLabel}`;
+      btnToggle.title = `คลิกล็อคตำแหน่ง ${ptLabel} เพื่อไม่ให้เลื่อนหลุด`;
     }
   }
 
   if (stampEl) {
     if (isLocked) {
       stampEl.classList.add('locked');
-      stampEl.title = 'ตำแหน่งถูกล็อคแล้ว (คลิกไอคอนกุญแจเพื่อปลดล็อค)';
+      stampEl.title = `${ptLabel} ถูกล็อคตำแหน่งแล้ว (คลิกไอคอนกุญแจเพื่อปลดล็อค)`;
     } else {
       stampEl.classList.remove('locked');
-      stampEl.title = 'คลิกค้างเพื่อลาก หรือคลิกบนเอกสารเพื่อย้ายตำแหน่ง';
+      stampEl.title = `คลิกค้างเพื่อลาก หรือคลิกบนเอกสารเพื่อย้ายตำแหน่ง ${ptLabel}`;
     }
   }
 
@@ -3536,13 +3650,22 @@ function updatePositionLockUI() {
   if (dragIcon) {
     dragIcon.className = isLocked ? 'fa-solid fa-shield-halved' : 'fa-solid fa-arrows-up-down-left-right';
   }
+
+  if (moveSelect) {
+    moveSelect.disabled = isLocked;
+    if (isLocked) {
+      moveSelect.title = `${ptLabel} ถูกล็อคตำแหน่งอยู่ กรุณาปลดล็อคก่อนย้ายไปหน้าอื่น`;
+    } else {
+      moveSelect.title = 'เลือกหน้าที่ต้องการย้ายจุดนี้ไป';
+    }
+  }
 }
 
 function savePositionModalAsDefault() {
   saveCurrentToActivePlacement();
   autoStagePlacementSettings();
   togglePositionLock(true);
-  showToast('📌 ล็อคและบันทึกตำแหน่งนี้เรียบร้อยแล้ว', 'success');
+  showToast(`📌 ล็อคและบันทึกตำแหน่งจุดที่ ${ActivePositionPicker.activePlacementIdx + 1} เรียบร้อยแล้ว`, 'success');
 }
 
 function initPositionModalListeners() {
@@ -3555,8 +3678,11 @@ function initPositionModalListeners() {
 
   // Click on document to jump stamp or place on current page
   wrapper.addEventListener('click', (e) => {
-    if (ActivePositionPicker.isLocked) return;
     if (e.target === stampEl || stampEl.contains(e.target) || ActivePositionPicker.isDragging) return;
+
+    const curPage = ActivePositionPicker.currentPage;
+    const curP = getActivePlacement();
+    const hasStampOnPage = ActivePositionPicker.placements.some(p => p.page === curPage);
 
     const rect = wrapper.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
@@ -3569,24 +3695,33 @@ function initPositionModalListeners() {
 
     const left = Math.max(0, Math.min(W - sW, clickX - (sW / 2)));
     const top = Math.max(0, Math.min(H - sH, clickY - (sH / 2)));
+    const pctX = left / W;
+    const pctY = top / H;
 
-    ActivePositionPicker.percentX = left / W;
-    ActivePositionPicker.percentY = top / H;
-
-    const curPage = ActivePositionPicker.currentPage;
-    const hasStampOnPage = ActivePositionPicker.placements.some(p => p.page === curPage);
-
-    if (!hasStampOnPage && ActivePositionPicker.placements.length > 0) {
-      // If current page doesn't have a stamp yet:
-      if (ActivePositionPicker.placements.length === 1) {
-        ActivePositionPicker.placements[0].page = curPage;
-      } else {
-        const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
-        if (curP) curP.page = curPage;
+    if (hasStampOnPage) {
+      // หน้านี้มีจุดปั๊มอยู่แล้ว
+      // ถ้าจุดที่เลือกถูกล็อคอยู่ ห้ามขยับ
+      if (isCurrentPointLocked()) {
+        showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ (คลิกปุ่มกุญแจเพื่อปลดล็อค)`, 'warning');
+        return;
       }
-      const bannerEl = document.getElementById('posNoStampOnCurrentPageBanner');
-      if (bannerEl) bannerEl.style.display = 'none';
-      if (stampEl) stampEl.style.display = 'block';
+      ActivePositionPicker.percentX = pctX;
+      ActivePositionPicker.percentY = pctY;
+    } else {
+      // หน้านี้ยังไม่มีตราปั๊ม
+      // หากมีแค่ 1 จุดและปลดล็อคอยู่: ย้ายจุดเดียวนั้นมาหน้านี้ตามพิกัดที่คลิก
+      if (ActivePositionPicker.placements.length <= 1 && curP && !curP.isLocked) {
+        curP.page = curPage;
+        ActivePositionPicker.percentX = pctX;
+        ActivePositionPicker.percentY = pctY;
+        const bannerEl = document.getElementById('posNoStampOnCurrentPageBanner');
+        if (bannerEl) bannerEl.style.display = 'none';
+        if (stampEl) stampEl.style.display = 'block';
+      } else {
+        // หากมีหลายจุด หรือจุดเดิมล็อคอยู่: เพิ่มจุดปั๊มใหม่บนหน้านี้ที่พิกัดคลิกทันที
+        addNewStampPlacement(curPage, pctX, pctY);
+        return;
+      }
     }
 
     updatePositionModalStampCoordinates();
@@ -3596,7 +3731,10 @@ function initPositionModalListeners() {
 
   // Pointer drag on stamp
   stampEl.addEventListener('pointerdown', (e) => {
-    if (ActivePositionPicker.isLocked) return;
+    if (isCurrentPointLocked()) {
+      showToast(`🔒 จุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ถูกล็อคตำแหน่งอยู่ (คลิกปุ่มกุญแจเพื่อปลดล็อค)`, 'warning');
+      return;
+    }
     ActivePositionPicker.isDragging = true;
     ActivePositionPicker.dragStartX = e.clientX;
     ActivePositionPicker.dragStartY = e.clientY;

@@ -35,7 +35,7 @@
   </script>
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25691104_3">
+  <link rel="stylesheet" href="style.css?v=25691104_7">
 </head>
 
 <body>
@@ -1482,9 +1482,14 @@
               </select>
             </div>
           </div>
-          <button type="button" class="btn btn-danger-sm" id="btnPosDeletePlacement" onclick="deleteActiveStampPlacement()" title="ลบตราปั๊มจุดที่เลือกนี้" style="display: none; padding: 2px 8px; font-size: 11px;">
-            <i class="fa-solid fa-trash"></i> ลบจุดนี้
-          </button>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button type="button" class="btn btn-outline btn-sm" id="btnPosLockAll" onclick="toggleLockAllPoints()" style="padding: 2px 8px; font-size: 11px; color: #166534; border-color: #86efac; background: #f0fdf4;" title="คลิกเพื่อล็อคหรือปลดล็อคทุกจุดพร้อมกัน">
+              <i class="fa-solid fa-lock" id="iconLockAll"></i> <span id="textLockAll">ล็อคทุกจุด</span>
+            </button>
+            <button type="button" class="btn btn-danger-sm" id="btnPosDeletePlacement" onclick="deleteActiveStampPlacement()" title="ลบตราปั๊มจุดที่เลือกนี้" style="display: none; padding: 2px 8px; font-size: 11px;">
+              <i class="fa-solid fa-trash"></i> ลบจุดนี้
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1766,9 +1771,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691104_5"></script>
-  <script src="stampEngine.js?v=25691104_5"></script>
-  <script src="app.js?v=25691104_5"></script>
+  <script src="stampAssets.js?v=25691104_7"></script>
+  <script src="stampEngine.js?v=25691104_7"></script>
+  <script src="app.js?v=25691104_7"></script>
 </body>
 
 </html>

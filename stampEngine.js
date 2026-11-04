@@ -749,6 +749,59 @@ const StampEngine = (function () {
   }
 
   /**
+   * Helper: วาดตราปั๊มลงบน Canvas ของรูปภาพ (Image document)
+   */
+  function drawStampOnImageCanvas({
+    ctx,
+    W,
+    H,
+    stampCanvas,
+    baseWFormula,
+    aspectRatio,
+    posConfig = {},
+    defaultPreset = 'top-right',
+    defaultMargin = 20
+  }) {
+    if (!stampCanvas || !ctx) return;
+
+    let placementList = [];
+    if (Array.isArray(posConfig.placements) && posConfig.placements.length > 0) {
+      placementList = posConfig.placements;
+    } else {
+      placementList = [posConfig];
+    }
+
+    for (const item of placementList) {
+      const rawScale = typeof item.scale === 'number' ? item.scale : (typeof posConfig.scale === 'number' ? posConfig.scale : 1.0);
+      const scale = Math.max(0.4, Math.min(2.5, rawScale));
+      const baseW = baseWFormula ? baseWFormula(W) : (W * 0.38);
+      const stampW = baseW * scale;
+      const stampH = stampW * (aspectRatio || 0.5);
+
+      let x, y;
+      if (typeof item.percentX === 'number' && typeof item.percentY === 'number') {
+        x = Math.max(0, Math.min(W - stampW, item.percentX * W));
+        y = Math.max(0, Math.min(H - stampH, item.percentY * H));
+      } else {
+        const coords = calculateStampCoordinatesImage(
+          item.preset || posConfig.preset || defaultPreset,
+          item.offsetX || posConfig.offsetX || 0,
+          item.offsetY || posConfig.offsetY || 0,
+          stampW,
+          stampH,
+          W,
+          H,
+          defaultMargin
+        );
+        x = coords.x;
+        y = coords.y;
+      }
+
+      ctx.drawImage(stampCanvas, x, y, stampW, stampH);
+    }
+  }
+
+  /**
    * Embed stamps onto Image document
    */
   async function stampImageDocument(options) {
