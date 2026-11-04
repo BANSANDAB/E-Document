@@ -35,7 +35,7 @@
   </script>
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css?v=25691104_2">
+  <link rel="stylesheet" href="style.css?v=25691104_3">
 </head>
 
 <body>
@@ -1222,14 +1222,51 @@
               oninput="updateDirectorStampPreview()">
           </div>
 
-          <!-- ช่องผู้รับผิดชอบ (Dropdown จากชีสครู + ครูทุกคน) -->
+          <!-- ช่องผู้รับผิดชอบ (เลือกได้มากกว่า 1 คน + ฝ่ายงาน 4 ฝ่าย + ครูทุกคน + รายชื่อครู) -->
           <div class="form-group" style="margin-bottom: 12px;">
-            <label class="form-label" for="directorAssignee">
-              <i class="fa-solid fa-user-check text-primary"></i> ผู้รับผิดชอบ <span class="required">*</span>
-            </label>
-            <select id="directorAssignee" class="form-control" onchange="updateDirectorStampPreview()" required>
-              <option value="">-- กำลังโหลดรายชื่อครู... --</option>
-            </select>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <label class="form-label" style="margin-bottom: 0;">
+                <i class="fa-solid fa-user-check text-primary"></i> ผู้รับผิดชอบ <span class="required">*</span>
+                <span style="font-size: 11.5px; color: #64748b; font-weight: normal;">(เพิ่มได้มากกว่า 1 คน)</span>
+              </label>
+              <button type="button" class="btn btn-outline btn-sm" onclick="clearAllAssignees()" id="btnClearAssignees" style="display: none; padding: 1px 6px; font-size: 11px; color: #dc2626; border-color: #fca5a5;">
+                <i class="fa-solid fa-xmark"></i> ล้างทั้งหมด
+              </button>
+            </div>
+
+            <!-- Quick Pill Buttons สำหรับฝ่ายงานหลัก และ ครูทุกคน -->
+            <div class="assignee-quick-pills" style="margin-bottom: 6px;">
+              <button type="button" class="assignee-pill-btn" onclick="toggleAssignee('ครูทุกคน')" data-name="ครูทุกคน">
+                <i class="fa-solid fa-star text-amber-500"></i> ครูทุกคน
+              </button>
+              <button type="button" class="assignee-pill-btn" onclick="toggleAssignee('หัวหน้างานฝ่ายวิชาการ')" data-name="หัวหน้างานฝ่ายวิชาการ">
+                <i class="fa-solid fa-book-open text-blue-500"></i> หัวหน้างานฝ่ายวิชาการ
+              </button>
+              <button type="button" class="assignee-pill-btn" onclick="toggleAssignee('หัวหน้างานฝ่ายบุคคล')" data-name="หัวหน้างานฝ่ายบุคคล">
+                <i class="fa-solid fa-user-tie text-emerald-500"></i> หัวหน้างานฝ่ายบุคคล
+              </button>
+              <button type="button" class="assignee-pill-btn" onclick="toggleAssignee('หัวหน้างานฝ่ายบริหารงานทั่วไป')" data-name="หัวหน้างานฝ่ายบริหารงานทั่วไป">
+                <i class="fa-solid fa-building text-purple-500"></i> หัวหน้างานฝ่ายบริหารงานทั่วไป
+              </button>
+              <button type="button" class="assignee-pill-btn" onclick="toggleAssignee('หัวหน้างานฝ่ายงบประมาณ')" data-name="หัวหน้างานฝ่ายงบประมาณ">
+                <i class="fa-solid fa-coins text-amber-600"></i> หัวหน้างานฝ่ายงบประมาณ
+              </button>
+            </div>
+
+            <!-- Dropdown สำหรับเลือกเพิ่มผู้รับผิดชอบ -->
+            <div style="margin-bottom: 6px;">
+              <select id="directorAssigneeSelect" class="form-control" onchange="onAssigneeSelectChange(this)">
+                <option value="">-- ➕ คลิกเพื่อเลือกเพิ่มผู้รับผิดชอบ (เลือกได้หลายคน) --</option>
+              </select>
+            </div>
+
+            <!-- Container แสดงรายการผู้รับผิดชอบที่ถูกเลือก (Tags) -->
+            <div id="directorAssigneeTags" class="assignee-tags-container">
+              <span id="assigneeEmptyNotice" style="font-size: 11.5px; color: #94a3b8; font-style: italic;">ยังไม่ได้เลือกผู้รับผิดชอบ (คลิกปุ่มด้านบน หรือเลือกจากรายชื่อ)</span>
+            </div>
+
+            <!-- Hidden Input สำหรับเก็บชื่อผู้รับผิดชอบทั้งหมดส่งต่อไปบันทึกและปั๊มตรา -->
+            <input type="hidden" id="directorAssignee" value="" required>
           </div>
 
           <div class="form-grid-2" style="margin-bottom: 12px;">
@@ -1421,14 +1458,11 @@
             </div>
           </div>
 
-          <!-- Position Lock, Remember Default & Confirm -->
+          <!-- Position Lock & Confirm (ไม่มีการล็อคคาไว้ เริ่มใหม่ทุกฉบับ) -->
           <div class="position-toolbar-group" style="margin-left: auto;">
             <button type="button" class="pos-lock-btn" id="btnPosLockToggle" onclick="togglePositionLock()" title="คลิกล็อค/ปลดล็อคตำแหน่งตราปั๊ม เพื่อป้องกันการเลื่อนหลุดเมื่อคลิกหรือเลื่อนดูเอกสารหลายหน้า">
               <i class="fa-solid fa-lock-open" id="iconPosLock"></i>
               <span id="textPosLock">ปลดล็อค</span>
-            </button>
-            <button type="button" class="pos-save-default-btn" id="btnPosSaveDefault" onclick="savePositionModalAsDefault()" title="จำตำแหน่งและขนาดนี้ไว้ใช้เป็นค่าเริ่มต้นสำหรับเอกสารฉบับต่อไป">
-              <i class="fa-solid fa-bookmark text-amber-500"></i> จำตำแหน่งนี้
             </button>
             <button type="button" class="pos-confirm-toolbar-btn" id="btnPosConfirmToolbar" onclick="confirmPositionModalSelection()" title="บันทึกและยืนยันตำแหน่งการปั๊มตรานี้">
               <i class="fa-solid fa-circle-check"></i> ยืนยันการปั๊มตรา
@@ -1716,9 +1750,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691104_2"></script>
-  <script src="stampEngine.js?v=25691104_2"></script>
-  <script src="app.js?v=25691104_2"></script>
+  <script src="stampAssets.js?v=25691104_3"></script>
+  <script src="stampEngine.js?v=25691104_3"></script>
+  <script src="app.js?v=25691104_3"></script>
 </body>
 
 </html>

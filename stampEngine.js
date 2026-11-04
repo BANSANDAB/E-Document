@@ -345,7 +345,18 @@ const StampEngine = (function () {
     // Assignee Line 2 (Above dots at Y=610 -> baseline at Y=598)
     if (assignee) {
       const assigneeText = 'มอบ: ' + assignee;
+      const maxAssigneeW = 1360; // Available width before right border
+      let fontSize = 46;
+      ctx.font = `bold ${fontSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
+      let textW = ctx.measureText(assigneeText).width;
+      while (textW > maxAssigneeW && fontSize > 20) {
+        fontSize -= 2;
+        ctx.font = `bold ${fontSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
+        textW = ctx.measureText(assigneeText).width;
+      }
       ctx.fillText(assigneeText, 180, 598);
+      // Reset font back to default
+      ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     }
 
     // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=712 -> bottom at Y=704) with scalable sizing anchored on baseline

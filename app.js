@@ -311,27 +311,132 @@ async function loadTeachersFromSheet() {
   populateTeacherDropdowns();
 }
 
+let currentDirectorAssignees = [];
+
 function populateTeacherDropdowns() {
-  const dropdown = document.getElementById('directorAssignee');
+  const dropdown = document.getElementById('directorAssigneeSelect') || document.getElementById('directorAssignee');
   if (!dropdown) return;
 
-  dropdown.innerHTML = '<option value="">-- เลือกผู้รับผิดชอบ --</option>';
+  dropdown.innerHTML = '<option value="">-- ➕ คลิกเพื่อเลือกเพิ่มผู้รับผิดชอบ (เลือกได้หลายคน) --</option>';
 
-  // Option: ครูทุกคน
-  const optAll = document.createElement('option');
-  optAll.value = 'ครูทุกคน';
-  optAll.textContent = '⭐ ครูทุกคน (All Teachers)';
-  optAll.style.fontWeight = 'bold';
-  optAll.style.color = '#2563eb';
-  dropdown.appendChild(optAll);
+  // Group: ฝ่ายงานและกลุ่มเป้าหมาย (4 ฝ่าย + ครูทุกคน)
+  const grpRoles = document.createElement('optgroup');
+  grpRoles.label = 'ฝ่ายงาน / กลุ่มเป้าหมาย';
 
-  // Teachers from Google Sheet
-  AppState.teachers.forEach(name => {
+  const defaultRoles = [
+    { value: 'ครูทุกคน', label: '⭐ ครูทุกคน (All Teachers)' },
+    { value: 'หัวหน้างานฝ่ายวิชาการ', label: '📘 หัวหน้างานฝ่ายวิชาการ' },
+    { value: 'หัวหน้างานฝ่ายบุคคล', label: '👥 หัวหน้างานฝ่ายบุคคล' },
+    { value: 'หัวหน้างานฝ่ายบริหารงานทั่วไป', label: '🏢 หัวหน้างานฝ่ายบริหารงานทั่วไป' },
+    { value: 'หัวหน้างานฝ่ายงบประมาณ', label: '💰 หัวหน้างานฝ่ายงบประมาณ' }
+  ];
+
+  defaultRoles.forEach(r => {
     const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    dropdown.appendChild(opt);
+    opt.value = r.value;
+    opt.textContent = r.label;
+    grpRoles.appendChild(opt);
   });
+  dropdown.appendChild(grpRoles);
+
+  // Group: รายชื่อครูและบุคลากรจาก Google Sheet
+  if (AppState.teachers && AppState.teachers.length > 0) {
+    const grpTeachers = document.createElement('optgroup');
+    grpTeachers.label = 'รายชื่อครูและบุคลากร';
+    AppState.teachers.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      grpTeachers.appendChild(opt);
+    });
+    dropdown.appendChild(grpTeachers);
+  }
+}
+
+function toggleAssignee(name) {
+  name = (name || '').trim();
+  if (!name) return;
+  const idx = currentDirectorAssignees.indexOf(name);
+  if (idx > -1) {
+    currentDirectorAssignees.splice(idx, 1);
+  } else {
+    currentDirectorAssignees.push(name);
+  }
+  syncAssigneeUI();
+}
+
+function addAssignee(name) {
+  name = (name || '').trim();
+  if (!name) return;
+  if (!currentDirectorAssignees.includes(name)) {
+    currentDirectorAssignees.push(name);
+    syncAssigneeUI();
+  }
+}
+
+function removeAssignee(name) {
+  const idx = currentDirectorAssignees.indexOf(name);
+  if (idx > -1) {
+    currentDirectorAssignees.splice(idx, 1);
+    syncAssigneeUI();
+  }
+}
+
+function clearAllAssignees() {
+  currentDirectorAssignees = [];
+  syncAssigneeUI();
+}
+
+function onAssigneeSelectChange(selectEl) {
+  if (!selectEl) return;
+  const val = selectEl.value;
+  if (val) {
+    addAssignee(val);
+    selectEl.value = '';
+  }
+}
+
+function syncAssigneeUI() {
+  const tagsContainer = document.getElementById('directorAssigneeTags');
+  const hiddenInput = document.getElementById('directorAssignee');
+  const clearBtn = document.getElementById('btnClearAssignees');
+
+  const joined = currentDirectorAssignees.join(', ');
+  if (hiddenInput) hiddenInput.value = joined;
+
+  if (tagsContainer) {
+    tagsContainer.innerHTML = '';
+    if (currentDirectorAssignees.length === 0) {
+      tagsContainer.innerHTML = '<span id="assigneeEmptyNotice" style="font-size: 11.5px; color: #94a3b8; font-style: italic;">ยังไม่ได้เลือกผู้รับผิดชอบ (คลิกปุ่มด้านบน หรือเลือกจากรายชื่อ)</span>';
+    } else {
+      currentDirectorAssignees.forEach(name => {
+        const tag = document.createElement('span');
+        tag.className = 'assignee-tag';
+        tag.innerHTML = `
+          <i class="fa-solid fa-user-check"></i>
+          <span>${escapeHtml(name)}</span>
+          <button type="button" class="assignee-tag-remove" onclick="removeAssignee('${escapeHtml(name)}')" title="ลบชื่อนี้">✕</button>
+        `;
+        tagsContainer.appendChild(tag);
+      });
+    }
+  }
+
+  // Update quick pills active state
+  document.querySelectorAll('.assignee-pill-btn').forEach(btn => {
+    const btnName = btn.getAttribute('data-name');
+    if (currentDirectorAssignees.includes(btnName)) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+
+  if (clearBtn) {
+    clearBtn.style.display = currentDirectorAssignees.length > 0 ? 'inline-flex' : 'none';
+  }
+
+  updateDirectorStampPreview();
 }
 
 /* ==========================================================================
@@ -806,8 +911,18 @@ function removeSelectedFile(index) {
 function clearSelectedFiles() {
   AppState.selectedFiles = [];
   AppState.selectedFile = null;
+  AppState.inboundCustomPos = null;
+  AppState.inboundStampScale = 1.0;
+  ActivePositionPicker.isLocked = false;
   const fileInput = document.getElementById('docFileInput');
   if (fileInput) fileInput.value = '';
+  const posBadge = document.getElementById('inboundPosBadge');
+  if (posBadge) {
+    posBadge.textContent = '📍 ขวาบน';
+    posBadge.className = 'badge badge-info';
+    posBadge.style.background = '';
+    posBadge.style.color = '';
+  }
   updateFilePreviewUI();
 }
 
@@ -1322,9 +1437,13 @@ function renderPendingTable() {
         </td>
         <td>
           ${isCompleted ? `
-            <span class="responsible-teacher-badge">
-              <i class="fa-solid fa-user-check"></i> ${escapeHtml(r.assignee)}
-            </span>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${(r.assignee || '').split(',').map(n => n.trim()).filter(Boolean).map(n => `
+                <span class="responsible-teacher-badge">
+                  <i class="fa-solid fa-user-check"></i> ${escapeHtml(n)}
+                </span>
+              `).join('')}
+            </div>
           ` : `
             <span style="color: #94a3b8; font-style: italic; font-size: 12px;">รอ ผอ. สั่งการ</span>
           `}
@@ -1942,12 +2061,11 @@ function openDirectorModal(docId) {
   const savedPos = doc.stamp3Pos || { preset: 'bottom-right', offsetX: 0, offsetY: 0 };
   setStampPositionValues('director', savedPos);
 
-  // Assignee dropdown
+  // Assignee setup (รองรับเพิ่มมากกว่า 1 คน + ฝ่ายงาน)
   populateTeacherDropdowns();
-  const assigneeSelect = document.getElementById('directorAssignee');
-  if (assigneeSelect) {
-    assigneeSelect.value = doc.assignee !== '-' ? doc.assignee : '';
-  }
+  const rawAssignee = (doc.assignee && doc.assignee !== '-') ? doc.assignee : '';
+  currentDirectorAssignees = rawAssignee ? rawAssignee.split(',').map(s => s.trim()).filter(Boolean) : [];
+  syncAssigneeUI();
 
   if (AppState.sigPadDirector) {
     AppState.sigPadDirector.clear();
@@ -1998,10 +2116,9 @@ async function handleSaveDirectorComment() {
   const doc = AppState.records.find(r => r.id === AppState.currentDocId);
   if (!doc) return;
 
-  const assignee = document.getElementById('directorAssignee').value;
-  if (!assignee) {
-    showToast('กรุณาเลือกผู้รับผิดชอบ (ชื่อครู หรือ ครูทุกคน)', 'warning');
-    document.getElementById('directorAssignee').focus();
+  const assignee = (document.getElementById('directorAssignee')?.value || '').trim();
+  if (!assignee || currentDirectorAssignees.length === 0) {
+    showToast('กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 คน (คลิกเลือกฝ่ายงาน หรือเลือกรายชื่อ)', 'warning');
     return;
   }
 
@@ -2523,23 +2640,15 @@ async function openDocumentPositionSelector(type = 'inbound') {
 
   ActivePositionPicker.currentDoc = targetDoc;
 
-  // Check if there is a saved default from localStorage
-  let defaultSaved = null;
+  // เคลียร์ค่าจำตำแหน่งเดิมใน localStorage ออกทั้งหมด เพื่อให้เอกสารใหม่เริ่มจากจุดเริ่มต้นเสมอ ไม่ล็อคคาไว้
   try {
-    const rawDef = localStorage.getItem('EDOC_DEFAULT_STAMP_POS_' + type);
-    if (rawDef) defaultSaved = JSON.parse(rawDef);
+    localStorage.removeItem('EDOC_DEFAULT_STAMP_POS_' + type);
   } catch (_) {}
 
-  // If no document-specific position was saved, fall back to defaultSaved
-  if (!savedPos && defaultSaved) {
-    savedPos = defaultSaved;
-  }
+  // เริ่มต้นทุกครั้งด้วยสถานะปลดล็อค (ไม่มีการล็อคคาไว้สำหรับเอกสารใหม่)
+  ActivePositionPicker.isLocked = false;
 
-  ActivePositionPicker.isLocked = (savedPos && typeof savedPos.isLocked === 'boolean')
-    ? savedPos.isLocked
-    : (defaultSaved && typeof defaultSaved.isLocked === 'boolean' ? defaultSaved.isLocked : false);
-
-  // Restore saved positions/placements if available
+  // Restore saved positions/placements เฉพาะเมื่อมีการกำหนดไว้ในเอกสารฉบับนี้เท่านั้น
   if (savedPos && Array.isArray(savedPos.placements) && savedPos.placements.length > 0) {
     ActivePositionPicker.placements = JSON.parse(JSON.stringify(savedPos.placements));
     ActivePositionPicker.activePlacementIdx = 0;
@@ -2568,8 +2677,10 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.percentY = savedPos.percentY;
     if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
   } else {
+    // เอกสารใหม่: เริ่มต้นใหม่จากจุดเริ่มต้น (หน้า 1, ขนาด 100%, พิกัดเริ่มต้น, ปลดล็อคอยู่)
     ActivePositionPicker.pageScope = 'single';
     ActivePositionPicker.currentPage = 1;
+    ActivePositionPicker.scale = 1.0;
     ActivePositionPicker.percentX = (type === 'inbound') ? 0.60 : (type === 'proposal' ? 0.05 : 0.58);
     ActivePositionPicker.percentY = (type === 'inbound') ? 0.03 : 0.60;
   }
@@ -3152,12 +3263,6 @@ function confirmPositionModalSelection() {
   } else {
     posObj.page = ActivePositionPicker.currentPage || 1;
     badgeLabel = `✅ ยืนยันตำแหน่งบนหน้า ${posObj.page} แล้ว`;
-  }
-
-  if (ActivePositionPicker.isLocked) {
-    try {
-      localStorage.setItem('EDOC_DEFAULT_STAMP_POS_' + type, JSON.stringify(posObj));
-    } catch (_) {}
   }
 
   if (type === 'inbound') {
