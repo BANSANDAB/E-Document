@@ -568,8 +568,8 @@ const StampEngine = (function () {
       // ผู้ใช้กำหนดหลายตำแหน่งหรือหลายหน้าอย่างอิสระ
       placementList = posConfig.placements.map(p => ({
         page: Number(p.page) || 1,
-        percentX: p.percentX,
-        percentY: p.percentY,
+        percentX: typeof p.percentX === 'number' ? p.percentX : (typeof posConfig.percentX === 'number' ? posConfig.percentX : 0.6),
+        percentY: typeof p.percentY === 'number' ? p.percentY : (typeof posConfig.percentY === 'number' ? posConfig.percentY : 0.03),
         preset: p.preset || posConfig.preset || defaultPreset,
         offsetX: p.offsetX || 0,
         offsetY: p.offsetY || 0,
@@ -618,16 +618,24 @@ const StampEngine = (function () {
       });
     }
 
+    console.log(`[StampEngine] Executing drawStampOnPdfPages across ${totalPages} pages. Placement count: ${placementList.length}`, placementList);
+
     // วาดตราปั๊มลงบนแต่ละหน้าตามที่ระบุ
     for (const item of placementList) {
       const pageIdx = item.page - 1;
-      if (pageIdx < 0 || pageIdx >= totalPages) continue;
+      if (pageIdx < 0 || pageIdx >= totalPages) {
+        console.warn(`[StampEngine] Page index ${pageIdx} (page ${item.page}) is outside document boundaries (1..${totalPages})`);
+        continue;
+      }
 
       const page = pages[pageIdx];
       const pageW = page.getWidth();
       const pageH = page.getHeight();
+      const originX = (typeof page.getX === 'function') ? (page.getX() || 0) : 0;
+      const originY = (typeof page.getY === 'function') ? (page.getY() || 0) : 0;
 
-      const scale = typeof item.scale === 'number' ? item.scale : 1.0;
+      const rawScale = typeof item.scale === 'number' ? item.scale : 1.0;
+      const scale = Math.max(0.4, Math.min(2.5, rawScale));
       const baseW = baseWidthFormula(pageW);
       const stampW = baseW * scale;
       const stampH = stampW * aspectRatio;
@@ -651,9 +659,11 @@ const StampEngine = (function () {
         );
       }
 
+      console.log(`[StampEngine] Drawing stamp on page ${item.page} at X:${Math.round(coords.x)}, Y:${Math.round(coords.y)} (Size: ${Math.round(stampW)}x${Math.round(stampH)})`);
+
       page.drawImage(stampImage, {
-        x: coords.x,
-        y: coords.y,
+        x: originX + coords.x,
+        y: originY + coords.y,
         width: stampW,
         height: stampH
       });

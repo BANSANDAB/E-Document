@@ -1223,6 +1223,7 @@ async function saveInboundDocument(e) {
       originalDataUrl: primaryFile.dataUrl,
       stampedDataUrl: primaryStampedDataUrl,
       stamp1Pos: stamp1Pos,
+      inboundCustomPos: stamp1Pos,
       files: filesList,
       status: 'รอเสนอ ผอ.', // Step 1 complete -> Next is Step 2
       step: 1,
@@ -1850,9 +1851,12 @@ async function handleSaveProposal() {
     });
 
     // 2. Re-stamp Document with Stamp 1 and Stamp 2 (with user-defined positions)
-    const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
+    const stamp1Pos = doc.inboundCustomPos || doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
     const stamp2Pos = doc.proposalCustomPos || doc.stamp2Pos || getStampPositionValues('proposal');
+    doc.stamp1Pos = stamp1Pos;
+    doc.inboundCustomPos = stamp1Pos;
     doc.stamp2Pos = stamp2Pos;
+    doc.proposalCustomPos = stamp2Pos;
 
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
@@ -2173,10 +2177,15 @@ async function handleSaveDirectorComment() {
     });
 
     // 2. Composite all stamps onto document (with user-defined positions)
-    const stamp1Pos = doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
-    const stamp2Pos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
+    const stamp1Pos = doc.inboundCustomPos || doc.stamp1Pos || { preset: 'top-right', offsetX: 0, offsetY: 0 };
+    const stamp2Pos = doc.proposalCustomPos || doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
     const stamp3Pos = doc.directorCustomPos || doc.stamp3Pos || getStampPositionValues('director');
+    doc.stamp1Pos = stamp1Pos;
+    doc.inboundCustomPos = stamp1Pos;
+    doc.stamp2Pos = stamp2Pos;
+    doc.proposalCustomPos = stamp2Pos;
     doc.stamp3Pos = stamp3Pos;
+    doc.directorCustomPos = stamp3Pos;
 
     if (doc.fileType === 'application/pdf') {
       const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
@@ -2657,12 +2666,24 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.percentX = firstP.percentX;
     ActivePositionPicker.percentY = firstP.percentY;
     if (typeof firstP.scale === 'number') ActivePositionPicker.scale = firstP.scale;
-    ActivePositionPicker.pageScope = 'custom_pages';
+    ActivePositionPicker.pageScope = savedPos.pageScope || 'custom_pages';
+    ActivePositionPicker.isLocked = !!savedPos.isLocked;
   } else if (savedPos && (savedPos.pages === 'all' || savedPos.targetScope === 'all')) {
     ActivePositionPicker.pageScope = 'all';
     ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
     ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
     if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.placements = [{
+      id: 1,
+      page: 1,
+      percentX: ActivePositionPicker.percentX,
+      percentY: ActivePositionPicker.percentY,
+      scale: ActivePositionPicker.scale || 1.0,
+      preset: 'custom'
+    }];
+    ActivePositionPicker.activePlacementIdx = 0;
+    ActivePositionPicker.currentPage = 1;
+    ActivePositionPicker.isLocked = !!savedPos.isLocked;
   } else if (savedPos && Array.isArray(savedPos.pages) && savedPos.pages.length > 0) {
     ActivePositionPicker.pageScope = 'custom_pages';
     ActivePositionPicker.customPages = [...savedPos.pages];
@@ -2670,12 +2691,32 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.percentX = typeof savedPos.percentX === 'number' ? savedPos.percentX : (type === 'inbound' ? 0.60 : (type === 'proposal' ? 0.05 : 0.58));
     ActivePositionPicker.percentY = typeof savedPos.percentY === 'number' ? savedPos.percentY : (type === 'inbound' ? 0.03 : 0.60);
     if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.placements = savedPos.pages.map((pg, idx) => ({
+      id: Date.now() + idx,
+      page: Number(pg) || 1,
+      percentX: ActivePositionPicker.percentX,
+      percentY: ActivePositionPicker.percentY,
+      scale: ActivePositionPicker.scale || 1.0,
+      preset: 'custom'
+    }));
+    ActivePositionPicker.activePlacementIdx = 0;
+    ActivePositionPicker.isLocked = !!savedPos.isLocked;
   } else if (savedPos && typeof savedPos.percentX === 'number') {
     ActivePositionPicker.pageScope = 'single';
     ActivePositionPicker.currentPage = Number(savedPos.page) || 1;
     ActivePositionPicker.percentX = savedPos.percentX;
     ActivePositionPicker.percentY = savedPos.percentY;
     if (typeof savedPos.scale === 'number') ActivePositionPicker.scale = savedPos.scale;
+    ActivePositionPicker.placements = [{
+      id: 1,
+      page: ActivePositionPicker.currentPage,
+      percentX: ActivePositionPicker.percentX,
+      percentY: ActivePositionPicker.percentY,
+      scale: ActivePositionPicker.scale || 1.0,
+      preset: 'custom'
+    }];
+    ActivePositionPicker.activePlacementIdx = 0;
+    ActivePositionPicker.isLocked = !!savedPos.isLocked;
   } else {
     // เอกสารใหม่: เริ่มต้นใหม่จากจุดเริ่มต้น (หน้า 1, ขนาด 100%, พิกัดเริ่มต้น, ปลดล็อคอยู่)
     ActivePositionPicker.pageScope = 'single';
@@ -2683,6 +2724,16 @@ async function openDocumentPositionSelector(type = 'inbound') {
     ActivePositionPicker.scale = 1.0;
     ActivePositionPicker.percentX = (type === 'inbound') ? 0.60 : (type === 'proposal' ? 0.05 : 0.58);
     ActivePositionPicker.percentY = (type === 'inbound') ? 0.03 : 0.60;
+    ActivePositionPicker.placements = [{
+      id: 1,
+      page: 1,
+      percentX: ActivePositionPicker.percentX,
+      percentY: ActivePositionPicker.percentY,
+      scale: 1.0,
+      preset: 'custom'
+    }];
+    ActivePositionPicker.activePlacementIdx = 0;
+    ActivePositionPicker.isLocked = false;
   }
 
   // Update UI Scope dropdown & Scale slider
@@ -2883,6 +2934,10 @@ async function onPositionPageSelectChange(val) {
 
 async function renderPositionModalPage(pageNum) {
   if (!ActivePositionPicker.pdfDoc) return;
+
+  // 1. บันทึกพิกัดจุดปั๊มปัจจุบันก่อนเปลี่ยนหน้า (บันทึกเฉพาะ X, Y, Scale ไม่เปลี่ยนหมายเลขหน้าของจุดเดิม)
+  saveCurrentToActivePlacement();
+
   ActivePositionPicker.currentPage = pageNum;
 
   const docCanvas = document.getElementById('positionDocCanvas');
@@ -2914,8 +2969,11 @@ async function renderPositionModalPage(pageNum) {
   if (pageSelect) pageSelect.value = String(pageNum);
   if (totalPagesEl) totalPagesEl.textContent = ActivePositionPicker.totalPages;
 
+  // จัดการซิงค์ตำแหน่งและแสดงผลตราปั๊มบนหน้านี้
   syncPlacementForCurrentPage();
+  updatePositionModalStampDimensions();
   updatePositionModalStampCoordinates();
+  updatePlacementsBarUI();
 }
 
 function onPositionPageScopeChange(scope) {
@@ -2930,6 +2988,7 @@ function onPositionPageScopeChange(scope) {
     }
   }
   updatePositionModalStampCoordinates();
+  autoStagePlacementSettings();
 }
 
 function renderCustomPagesCheckboxes() {
@@ -2961,6 +3020,7 @@ function toggleCustomPageSelection(pageNum, isChecked) {
     ActivePositionPicker.customPages = ActivePositionPicker.customPages.filter(p => p !== pageNum);
   }
   updatePositionModalStampCoordinates();
+  autoStagePlacementSettings();
 }
 
 function onPositionModalScaleInput(val) {
@@ -2969,6 +3029,7 @@ function onPositionModalScaleInput(val) {
   syncScaleSliderUI(scale);
   updatePositionModalStampDimensions();
   saveCurrentToActivePlacement();
+  autoStagePlacementSettings();
 }
 
 function adjustPositionModalScale(delta) {
@@ -3006,27 +3067,61 @@ function updatePositionModalStampDimensions() {
 }
 
 function syncPlacementForCurrentPage() {
-  if (ActivePositionPicker.placements.length > 0) {
-    const curPage = ActivePositionPicker.currentPage;
-    const foundIdx = ActivePositionPicker.placements.findIndex(p => p.page === curPage);
-    if (foundIdx !== -1) {
-      ActivePositionPicker.activePlacementIdx = foundIdx;
-      const p = ActivePositionPicker.placements[foundIdx];
-      ActivePositionPicker.percentX = p.percentX;
-      ActivePositionPicker.percentY = p.percentY;
-      if (typeof p.scale === 'number') {
-        ActivePositionPicker.scale = p.scale;
-        syncScaleSliderUI(p.scale);
-      }
+  const stampEl = document.getElementById('positionFloatingStamp');
+  const bannerEl = document.getElementById('posNoStampOnCurrentPageBanner');
+  const labelEl = document.getElementById('floatingStampLabel');
+  const curPage = ActivePositionPicker.currentPage;
+  const type = ActivePositionPicker.type;
+
+  // กรณีมีเพียง 1 จุด และไม่ได้กดล็อคตำแหน่งไว้: เมื่อเปิดดูหน้าใด ให้จุดปั๊มเลื่อนตามมาแสดงบนหน้านั้น
+  if (ActivePositionPicker.placements.length <= 1 && !ActivePositionPicker.isLocked) {
+    if (ActivePositionPicker.placements.length === 1) {
+      ActivePositionPicker.placements[0].page = curPage;
+    }
+    ActivePositionPicker.activePlacementIdx = 0;
+    if (stampEl) stampEl.style.display = 'block';
+    if (bannerEl) bannerEl.style.display = 'none';
+    if (labelEl) {
+      labelEl.textContent = (type === 'inbound') ? `ตราปั๊มรับเข้า (หน้า ${curPage})` : ((type === 'proposal') ? `ตราเสนอ ผอ. (หน้า ${curPage})` : `ตราสั่งการ ผอ. (หน้า ${curPage})`);
+    }
+    return;
+  }
+
+  // กรณีมีหลายจุดปั๊ม หรือจุดเดียวที่ล็อคตำแหน่งไว้:
+  // ค้นหาว่าในหน้านี้มีจุดปั๊มที่กำหนดไว้หรือไม่
+  const foundIdx = ActivePositionPicker.placements.findIndex(p => p.page === curPage);
+  if (foundIdx !== -1) {
+    // หน้านี้มีจุดปั๊มที่กำหนดไว้: แสดงตราปั๊มและโหลดพิกัดของจุดนั้น
+    ActivePositionPicker.activePlacementIdx = foundIdx;
+    const p = ActivePositionPicker.placements[foundIdx];
+    ActivePositionPicker.percentX = p.percentX;
+    ActivePositionPicker.percentY = p.percentY;
+    if (typeof p.scale === 'number') {
+      ActivePositionPicker.scale = p.scale;
+      syncScaleSliderUI(p.scale);
+    }
+    if (stampEl) stampEl.style.display = 'block';
+    if (bannerEl) bannerEl.style.display = 'none';
+    if (labelEl) {
+      labelEl.textContent = `ตราปั๊มจุดที่ ${foundIdx + 1} (หน้า ${curPage})`;
+    }
+  } else {
+    // หน้านี้ยังไม่มีจุดปั๊ม: ซ่อนกล่องตราปั๊มลอย และแสดงแถบแจ้งเตือนพร้อมปุ่มเพิ่มจุดปั๊มบนหน้านี้
+    // สำคัญ: ห้ามเปลี่ยน page ของจุดเดิมเด็ดขาด เพื่อป้องกันตำแหน่งหน้าเดิมเสียหาย!
+    if (stampEl) stampEl.style.display = 'none';
+    if (bannerEl) {
+      bannerEl.style.display = 'flex';
+      const pageNotice = document.getElementById('posCurrentPageNotice');
+      if (pageNotice) pageNotice.textContent = curPage;
     }
   }
-  updatePlacementsBarUI();
 }
 
 function updatePlacementsBarUI() {
   const container = document.getElementById('posPlacementsBarContainer');
   const listEl = document.getElementById('posPlacementsList');
   const delBtn = document.getElementById('btnPosDeletePlacement');
+  const moveSelect = document.getElementById('posMovePlacementPageSelect');
 
   if (!container || !listEl) return;
 
@@ -3035,26 +3130,39 @@ function updatePlacementsBarUI() {
     if (delBtn) delBtn.style.display = 'inline-flex';
 
     listEl.innerHTML = ActivePositionPicker.placements.map((p, idx) => {
-      const isActive = idx === ActivePositionPicker.activePlacementIdx;
+      const isActive = idx === ActivePositionPicker.activePlacementIdx && p.page === ActivePositionPicker.currentPage;
       return `
-        <span class="pos-placement-pill ${isActive ? 'active' : ''}" onclick="selectStampPlacement(${idx})">
+        <span class="pos-placement-pill ${isActive ? 'active' : ''}" onclick="selectStampPlacement(${idx})" title="คลิกเพื่อไปยังหน้า ${p.page || 1} และปรับตำแหน่งจุดที่ ${idx + 1}">
           <i class="fa-solid fa-stamp"></i> จุดที่ ${idx + 1} (หน้า ${p.page || 1}) ${Math.round((p.scale || 1) * 100)}%
         </span>
       `;
     }).join('');
+
+    // อัพเดทดรอปดาวน์ "ย้ายจุดนี้ไปหน้า"
+    if (moveSelect) {
+      const curActiveP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+      const curPPage = curActiveP ? (curActiveP.page || 1) : 1;
+      const totalPages = ActivePositionPicker.totalPages || 1;
+      moveSelect.innerHTML = Array.from({ length: totalPages }, (_, i) => {
+        const pg = i + 1;
+        return `<option value="${pg}" ${pg === curPPage ? 'selected' : ''}>หน้า ${pg}</option>`;
+      }).join('');
+    }
   } else {
     container.style.display = 'none';
     if (delBtn) delBtn.style.display = 'none';
   }
 }
 
-function addNewStampPlacement() {
+function addNewStampPlacement(targetPage) {
   saveCurrentToActivePlacement();
+
+  const page = Number(targetPage) || ActivePositionPicker.currentPage || 1;
 
   if (ActivePositionPicker.placements.length === 0) {
     ActivePositionPicker.placements.push({
       id: 1,
-      page: ActivePositionPicker.currentPage || 1,
+      page: page,
       percentX: ActivePositionPicker.percentX,
       percentY: ActivePositionPicker.percentY,
       scale: ActivePositionPicker.scale || 1.0,
@@ -3065,9 +3173,9 @@ function addNewStampPlacement() {
   const newIdx = ActivePositionPicker.placements.length;
   const newPlacement = {
     id: Date.now(),
-    page: ActivePositionPicker.currentPage || 1,
-    percentX: Math.max(0.05, Math.min(0.9, ActivePositionPicker.percentX)),
-    percentY: Math.max(0.05, Math.min(0.85, (ActivePositionPicker.percentY + 0.15) % 0.85)),
+    page: page,
+    percentX: (ActivePositionPicker.type === 'inbound') ? 0.60 : (ActivePositionPicker.type === 'proposal' ? 0.05 : 0.58),
+    percentY: (ActivePositionPicker.type === 'inbound') ? 0.03 : 0.60,
     scale: ActivePositionPicker.scale || 1.0,
     preset: 'custom'
   };
@@ -3077,9 +3185,40 @@ function addNewStampPlacement() {
   ActivePositionPicker.percentX = newPlacement.percentX;
   ActivePositionPicker.percentY = newPlacement.percentY;
 
-  updatePlacementsBarUI();
-  updatePositionModalStampCoordinates();
-  showToast(`เพิ่มตำแหน่งตราปั๊มจุดที่ ${newIdx + 1} เรียบร้อยแล้ว (สามารถลากย้ายตำแหน่งและปรับขนาดย่อ-ขยายได้)`, 'success');
+  if (page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
+    renderPositionModalPage(page);
+  } else {
+    const stampEl = document.getElementById('positionFloatingStamp');
+    const bannerEl = document.getElementById('posNoStampOnCurrentPageBanner');
+    if (stampEl) stampEl.style.display = 'block';
+    if (bannerEl) bannerEl.style.display = 'none';
+    updatePositionModalStampDimensions();
+    updatePositionModalStampCoordinates();
+    updatePlacementsBarUI();
+  }
+
+  autoStagePlacementSettings();
+  showToast(`เพิ่มตำแหน่งตราปั๊มจุดที่ ${newIdx + 1} บนหน้า ${page} เรียบร้อยแล้ว (สามารถลากย้ายและปรับขนาดย่อ-ขยายได้)`, 'success');
+}
+
+function moveActivePlacementToPage(targetPage) {
+  const pageNum = parseInt(targetPage, 10);
+  if (isNaN(pageNum) || pageNum < 1 || pageNum > (ActivePositionPicker.totalPages || 1)) return;
+  if (ActivePositionPicker.placements.length > 0) {
+    const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+    if (curP) {
+      curP.page = pageNum;
+      if (pageNum !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
+        renderPositionModalPage(pageNum);
+      } else {
+        syncPlacementForCurrentPage();
+        updatePositionModalStampCoordinates();
+        updatePlacementsBarUI();
+      }
+      autoStagePlacementSettings();
+      showToast(`ย้ายตราปั๊มจุดที่ ${ActivePositionPicker.activePlacementIdx + 1} ไปยังหน้า ${pageNum} เรียบร้อยแล้ว`, 'success');
+    }
+  }
 }
 
 function selectStampPlacement(index) {
@@ -3097,6 +3236,7 @@ function selectStampPlacement(index) {
   if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
     renderPositionModalPage(p.page);
   } else {
+    syncPlacementForCurrentPage();
     updatePositionModalStampCoordinates();
     updatePlacementsBarUI();
   }
@@ -3117,9 +3257,11 @@ function deleteActiveStampPlacement() {
   if (p.page && p.page !== ActivePositionPicker.currentPage && ActivePositionPicker.pdfDoc) {
     renderPositionModalPage(p.page);
   } else {
+    syncPlacementForCurrentPage();
     updatePositionModalStampCoordinates();
     updatePlacementsBarUI();
   }
+  autoStagePlacementSettings();
   showToast('ลบจุดปั๊มเรียบร้อยแล้ว', 'info');
 }
 
@@ -3127,7 +3269,7 @@ function saveCurrentToActivePlacement() {
   if (ActivePositionPicker.placements.length > 0) {
     const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
     if (curP) {
-      curP.page = ActivePositionPicker.currentPage;
+      // หมายเหตุ: บันทึกเฉพาะตำแหน่ง X/Y และขนาดสเกล ไม่ทับหมายเลขหน้าของจุดเดิม
       curP.percentX = ActivePositionPicker.percentX;
       curP.percentY = ActivePositionPicker.percentY;
       curP.scale = ActivePositionPicker.scale;
@@ -3169,7 +3311,7 @@ function updatePositionModalStampCoordinates() {
 
   let pageText = `หน้า ${ActivePositionPicker.currentPage}`;
   if (ActivePositionPicker.placements.length > 1) {
-    pageText = `ปั๊ม ${ActivePositionPicker.placements.length} จุด (${ActivePositionPicker.placements.map(p => 'หน้า ' + p.page).join(', ')})`;
+    pageText = `ปั๊ม ${ActivePositionPicker.placements.length} จุด (${ActivePositionPicker.placements.map((p, i) => `จุดที่ ${i+1}: น.${p.page}`).join(', ')})`;
   } else if (ActivePositionPicker.pageScope === 'all') {
     pageText = `ปั๊มทุกหน้า (1-${ActivePositionPicker.totalPages})`;
   } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
@@ -3218,6 +3360,7 @@ function applyPositionModalPreset(preset) {
   }
 
   updatePositionModalStampCoordinates();
+  autoStagePlacementSettings();
 }
 
 function nudgePositionModal(deltaX, deltaY) {
@@ -3228,9 +3371,10 @@ function nudgePositionModal(deltaX, deltaY) {
   ActivePositionPicker.percentX += (deltaX / 100);
   ActivePositionPicker.percentY += (deltaY / 100);
   updatePositionModalStampCoordinates();
+  autoStagePlacementSettings();
 }
 
-function confirmPositionModalSelection() {
+function autoStagePlacementSettings() {
   saveCurrentToActivePlacement();
   const type = ActivePositionPicker.type;
 
@@ -3239,30 +3383,37 @@ function confirmPositionModalSelection() {
     scale: ActivePositionPicker.scale || 1.0,
     percentX: ActivePositionPicker.percentX,
     percentY: ActivePositionPicker.percentY,
-    isLocked: !!ActivePositionPicker.isLocked
+    isLocked: !!ActivePositionPicker.isLocked,
+    page: ActivePositionPicker.currentPage || 1
   };
 
-  let badgeLabel = '✅ ยืนยันตำแหน่งแล้ว';
+  let badgeLabel = '✅ กำหนดตำแหน่งแล้ว';
 
-  if (ActivePositionPicker.placements.length > 1) {
-    posObj.placements = ActivePositionPicker.placements.map(p => ({
-      page: p.page,
-      percentX: p.percentX,
-      percentY: p.percentY,
-      scale: p.scale || posObj.scale,
-      preset: 'custom'
-    }));
-    badgeLabel = `✅ ยืนยันปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(',')})`;
-  } else if (ActivePositionPicker.pageScope === 'all') {
+  if (ActivePositionPicker.pageScope === 'all') {
     posObj.pages = 'all';
     posObj.targetScope = 'all';
-    badgeLabel = `✅ ยืนยันปั๊มทุกหน้า (${ActivePositionPicker.totalPages || 1} หน้า)`;
-  } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages.length > 0) {
+    badgeLabel = `✅ ปั๊มทุกหน้า (${ActivePositionPicker.totalPages || 1} หน้า)`;
+  } else if (ActivePositionPicker.pageScope === 'custom_pages' && ActivePositionPicker.customPages && ActivePositionPicker.customPages.length > 0) {
     posObj.pages = [...ActivePositionPicker.customPages];
-    badgeLabel = `✅ ยืนยันปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
+    badgeLabel = `✅ ปั๊มหน้า: ${ActivePositionPicker.customPages.join(', ')}`;
+  } else if (ActivePositionPicker.placements && ActivePositionPicker.placements.length > 0) {
+    posObj.placements = ActivePositionPicker.placements.map(p => ({
+      page: Number(p.page) || 1,
+      percentX: typeof p.percentX === 'number' ? p.percentX : ActivePositionPicker.percentX,
+      percentY: typeof p.percentY === 'number' ? p.percentY : ActivePositionPicker.percentY,
+      scale: typeof p.scale === 'number' ? p.scale : posObj.scale,
+      preset: 'custom'
+    }));
+    if (posObj.placements.length > 1) {
+      posObj.page = posObj.placements[0].page;
+      badgeLabel = `✅ ปั๊ม ${posObj.placements.length} จุด (${posObj.placements.map(p => 'น.' + p.page).join(', ')})`;
+    } else {
+      posObj.page = posObj.placements[0].page;
+      badgeLabel = `✅ ปั๊มหน้า ${posObj.page}`;
+    }
   } else {
     posObj.page = ActivePositionPicker.currentPage || 1;
-    badgeLabel = `✅ ยืนยันตำแหน่งบนหน้า ${posObj.page} แล้ว`;
+    badgeLabel = `✅ ปั๊มหน้า ${posObj.page}`;
   }
 
   if (type === 'inbound') {
@@ -3280,13 +3431,6 @@ function confirmPositionModalSelection() {
     const formScaleTxt = document.getElementById('inboundStampScaleText');
     if (formScaleTxt) formScaleTxt.textContent = Math.round(posObj.scale * 100) + '%';
 
-    showToast(`✅ ยืนยันการปั๊มตรา ${badgeLabel} เรียบร้อยแล้ว`, 'success');
-
-    const saveBtn = document.getElementById('saveInboundBtn');
-    if (saveBtn) {
-      saveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
   } else if (type === 'proposal') {
     if (ActivePositionPicker.currentDoc) {
       ActivePositionPicker.currentDoc.proposalCustomPos = posObj;
@@ -3297,8 +3441,6 @@ function confirmPositionModalSelection() {
     const propScaleVal = document.getElementById('propStampScaleVal');
     if (propScaleVal) propScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
 
-    showToast(`✅ ยืนยันการปั๊มตราเสนอ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
-
   } else if (type === 'director') {
     if (ActivePositionPicker.currentDoc) {
       ActivePositionPicker.currentDoc.directorCustomPos = posObj;
@@ -3308,11 +3450,22 @@ function confirmPositionModalSelection() {
     if (dirScaleEl) dirScaleEl.value = posObj.scale;
     const dirScaleVal = document.getElementById('dirStampScaleVal');
     if (dirScaleVal) dirScaleVal.textContent = Math.round(posObj.scale * 100) + '%';
-
-    showToast(`✅ ยืนยันการปั๊มตราสั่งการ ผอ. ${badgeLabel} เรียบร้อยแล้ว`, 'success');
   }
 
+  return { posObj, badgeLabel };
+}
+
+function confirmPositionModalSelection() {
+  const { posObj, badgeLabel } = autoStagePlacementSettings();
+  showToast(`✅ ยืนยันการปั๊มตรา ${badgeLabel} เรียบร้อยแล้ว`, 'success');
   closeModal('stampPositionModal');
+
+  if (ActivePositionPicker.type === 'inbound') {
+    const saveBtn = document.getElementById('saveInboundBtn');
+    if (saveBtn) {
+      saveBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
 }
 
 function togglePositionLock(forceState) {
@@ -3322,8 +3475,9 @@ function togglePositionLock(forceState) {
     ActivePositionPicker.isLocked = !ActivePositionPicker.isLocked;
   }
   updatePositionLockUI();
+  autoStagePlacementSettings();
   if (ActivePositionPicker.isLocked) {
-    showToast('🔒 ล็อคตำแหน่งตราปั๊มแล้ว (ไม่เคลื่อนที่เมื่อคลิกหรือเลื่อนดูเอกสาร)', 'info');
+    showToast('🔒 ล็อคตำแหน่งตราปั๊มทุกจุดเรียบร้อยแล้ว (ไม่เคลื่อนที่เมื่อคลิกหรือเปิดดูหน้าอื่น)', 'info');
   } else {
     showToast('🔓 ปลดล็อคตำแหน่งแล้ว (คลิกหรือลากเพื่อย้ายตำแหน่งได้)', 'info');
   }
@@ -3386,22 +3540,9 @@ function updatePositionLockUI() {
 
 function savePositionModalAsDefault() {
   saveCurrentToActivePlacement();
-  const type = ActivePositionPicker.type;
-  const config = {
-    percentX: ActivePositionPicker.percentX,
-    percentY: ActivePositionPicker.percentY,
-    scale: ActivePositionPicker.scale || 1.0,
-    pageScope: ActivePositionPicker.pageScope,
-    isLocked: true
-  };
-  try {
-    localStorage.setItem('EDOC_DEFAULT_STAMP_POS_' + type, JSON.stringify(config));
-    togglePositionLock(true);
-    showToast('📌 บันทึกและล็อคตำแหน่งนี้เป็นค่าเริ่มต้นสำหรับเอกสารทุกฉบับเรียบร้อยแล้ว', 'success');
-  } catch (e) {
-    console.error('Error saving default position to localStorage:', e);
-    showToast('ไม่สามารถบันทึกค่าเริ่มต้นได้', 'error');
-  }
+  autoStagePlacementSettings();
+  togglePositionLock(true);
+  showToast('📌 ล็อคและบันทึกตำแหน่งนี้เรียบร้อยแล้ว', 'success');
 }
 
 function initPositionModalListeners() {
@@ -3412,7 +3553,7 @@ function initPositionModalListeners() {
   const stampEl = document.getElementById('positionFloatingStamp');
   if (!wrapper || !stampEl) return;
 
-  // Click on document to jump stamp
+  // Click on document to jump stamp or place on current page
   wrapper.addEventListener('click', (e) => {
     if (ActivePositionPicker.isLocked) return;
     if (e.target === stampEl || stampEl.contains(e.target) || ActivePositionPicker.isDragging) return;
@@ -3431,7 +3572,26 @@ function initPositionModalListeners() {
 
     ActivePositionPicker.percentX = left / W;
     ActivePositionPicker.percentY = top / H;
+
+    const curPage = ActivePositionPicker.currentPage;
+    const hasStampOnPage = ActivePositionPicker.placements.some(p => p.page === curPage);
+
+    if (!hasStampOnPage && ActivePositionPicker.placements.length > 0) {
+      // If current page doesn't have a stamp yet:
+      if (ActivePositionPicker.placements.length === 1) {
+        ActivePositionPicker.placements[0].page = curPage;
+      } else {
+        const curP = ActivePositionPicker.placements[ActivePositionPicker.activePlacementIdx];
+        if (curP) curP.page = curPage;
+      }
+      const bannerEl = document.getElementById('posNoStampOnCurrentPageBanner');
+      if (bannerEl) bannerEl.style.display = 'none';
+      if (stampEl) stampEl.style.display = 'block';
+    }
+
     updatePositionModalStampCoordinates();
+    updatePlacementsBarUI();
+    autoStagePlacementSettings();
   });
 
   // Pointer drag on stamp
@@ -3468,6 +3628,7 @@ function initPositionModalListeners() {
     if (ActivePositionPicker.isDragging) {
       ActivePositionPicker.isDragging = false;
       try { stampEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      autoStagePlacementSettings();
     }
   };
 
@@ -4018,6 +4179,9 @@ function openModal(modalId) {
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) modal.classList.remove('active');
+  if (modalId === 'stampPositionModal' && typeof autoStagePlacementSettings === 'function') {
+    autoStagePlacementSettings();
+  }
 }
 
 /* ==========================================================================

@@ -1471,10 +1471,16 @@
         </div>
 
         <!-- Row 3: Active Placements Chips Bar (เมื่อมีมากกว่า 1 จุดปั๊ม) -->
-        <div id="posPlacementsBarContainer" style="display: none; align-items: center; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-          <div class="position-toolbar-group">
+        <div id="posPlacementsBarContainer" style="display: none; align-items: center; justify-content: space-between; border-top: 1px dashed #cbd5e1; padding-top: 6px; flex-wrap: wrap; gap: 8px;">
+          <div class="position-toolbar-group" style="flex-wrap: wrap; gap: 6px; align-items: center;">
             <span class="position-toolbar-label" style="color: #15803d;"><i class="fa-solid fa-stamp"></i> รายการตราปั๊ม:</span>
             <div id="posPlacementsList" class="pos-placements-bar"></div>
+            <!-- Quick Move Active Placement Page Dropdown -->
+            <div id="posMoveActivePlacementBox" style="display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-size: 11.5px; background: #f0fdf4; padding: 2px 8px; border-radius: 4px; border: 1px solid #bbf7d0;">
+              <span style="color: #166534; font-weight: 600;"><i class="fa-solid fa-file-export text-primary"></i> ย้ายจุดนี้ไปหน้า:</span>
+              <select id="posMovePlacementPageSelect" class="pos-page-select" onchange="moveActivePlacementToPage(this.value)" style="font-size: 11.5px; height: 24px; padding: 1px 6px; font-weight: 600;">
+              </select>
+            </div>
           </div>
           <button type="button" class="btn btn-danger-sm" id="btnPosDeletePlacement" onclick="deleteActiveStampPlacement()" title="ลบตราปั๊มจุดที่เลือกนี้" style="display: none; padding: 2px 8px; font-size: 11px;">
             <i class="fa-solid fa-trash"></i> ลบจุดนี้
@@ -1484,6 +1490,16 @@
 
       <!-- Main Viewer Area: Document Page Canvas + Floating Draggable Stamp -->
       <div class="modal-body position-modal-viewport" id="positionModalViewport" style="grid-template-columns: 1fr; padding: 16px; background: #334155; overflow: auto; display: flex; justify-content: center; align-items: flex-start; min-height: 480px; position: relative;">
+        <!-- Banner shown when current page has no stamp placed on it -->
+        <div id="posNoStampOnCurrentPageBanner" style="display: none; position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.92); color: #fff; padding: 7px 16px; border-radius: 20px; font-size: 12px; z-index: 25; box-shadow: 0 4px 16px rgba(0,0,0,0.4); align-items: center; gap: 10px; border: 1px solid #38bdf8;">
+          <span><i class="fa-solid fa-circle-info" style="color: #38bdf8;"></i> หน้านี้ (หน้า <strong id="posCurrentPageNotice" style="color:#fde047;">1</strong>) ยังไม่มีตราปั๊ม</span>
+          <button type="button" class="btn btn-success btn-sm" onclick="addNewStampPlacement(ActivePositionPicker.currentPage)" style="padding: 3px 10px; font-size: 11.5px; font-weight: 700; border: none; border-radius: 4px; background: #16a34a; color:#fff; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-plus"></i> ปั๊มบนหน้านี้
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="moveActivePlacementToPage(ActivePositionPicker.currentPage)" style="padding: 3px 10px; font-size: 11.5px; font-weight: 600; border-radius: 4px; color:#fff; border-color:#94a3b8; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+            <i class="fa-solid fa-location-dot"></i> ย้ายจุดที่เลือกมาหน้านี้
+          </button>
+        </div>
         <!-- Loading Indicator -->
         <div id="positionDocLoading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ffffff; text-align: center; z-index: 10;">
           <i class="fa-solid fa-spinner fa-spin" style="font-size: 32px; color: #60a5fa; margin-bottom: 8px;"></i>
@@ -1750,9 +1766,9 @@
   </footer>
 
   <!-- Scripts in dependency order -->
-  <script src="stampAssets.js?v=25691104_3"></script>
-  <script src="stampEngine.js?v=25691104_3"></script>
-  <script src="app.js?v=25691104_3"></script>
+  <script src="stampAssets.js?v=25691104_5"></script>
+  <script src="stampEngine.js?v=25691104_5"></script>
+  <script src="app.js?v=25691104_5"></script>
 </body>
 
 </html>
