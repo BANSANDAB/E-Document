@@ -10,7 +10,7 @@ const StampEngine = (function () {
   // Cache preloaded images
   const imageCache = {};
 
-  function loadImage(src) {
+  function loadImage(src, fallbackAssetKey) {
     if (imageCache[src]) {
       return Promise.resolve(imageCache[src]);
     }
@@ -22,7 +22,7 @@ const StampEngine = (function () {
         resolve(img);
       };
       img.onerror = () => {
-        // Fallback to alternate Thai spelling (ไม้โท ้ vs ไม้ตรี ๊)
+        // Fallback 1: Try alternate Thai spelling (ไม้โท ้ vs ไม้ตรี ๊)
         let altSrc = null;
         if (src.includes('ตราปั้ม')) altSrc = src.replace('ตราปั้ม', 'ตราปั๊ม');
         else if (src.includes('ตราปั๊ม')) altSrc = src.replace('ตราปั๊ม', 'ตราปั้ม');
@@ -33,8 +33,29 @@ const StampEngine = (function () {
             imageCache[src] = altImg;
             resolve(altImg);
           };
-          altImg.onerror = () => reject(new Error('Failed to load stamp image: ' + src));
+          altImg.onerror = () => {
+            // Fallback 2: Try STAMP_ASSETS base64
+            if (fallbackAssetKey && typeof STAMP_ASSETS !== 'undefined' && STAMP_ASSETS[fallbackAssetKey]) {
+              const b64Img = new Image();
+              b64Img.onload = () => {
+                imageCache[src] = b64Img;
+                resolve(b64Img);
+              };
+              b64Img.onerror = () => reject(new Error('Failed to load stamp image: ' + src));
+              b64Img.src = STAMP_ASSETS[fallbackAssetKey];
+            } else {
+              reject(new Error('Failed to load stamp image: ' + src));
+            }
+          };
           altImg.src = altSrc;
+        } else if (fallbackAssetKey && typeof STAMP_ASSETS !== 'undefined' && STAMP_ASSETS[fallbackAssetKey]) {
+          const b64Img = new Image();
+          b64Img.onload = () => {
+            imageCache[src] = b64Img;
+            resolve(b64Img);
+          };
+          b64Img.onerror = () => reject(new Error('Failed to load stamp image: ' + src));
+          b64Img.src = STAMP_ASSETS[fallbackAssetKey];
         } else {
           reject(new Error('Failed to load stamp image: ' + src));
         }
@@ -44,13 +65,16 @@ const StampEngine = (function () {
   }
 
   function getStampAsset(stampKey) {
+    // 1. Always prioritize current image files directly from folder with cache-busting
+    const ver = '25691105_10';
+    if (stampKey === 'stamp1') return `./ตราปั้มหนังสือรับ.png?v=${ver}`;
+    if (stampKey === 'stamp2') return `./ตราปั้มหนังสือรับ 2.png?v=${ver}`;
+    if (stampKey === 'stamp3') return `./ตราปั้มหนังสือรับ 3.png?v=${ver}`;
+
+    // 2. Fallback to embedded base64 in STAMP_ASSETS
     if (typeof STAMP_ASSETS !== 'undefined' && STAMP_ASSETS[stampKey]) {
       return STAMP_ASSETS[stampKey];
     }
-    // Fallback relative paths
-    if (stampKey === 'stamp1') return './ตราปั้มหนังสือรับ.png';
-    if (stampKey === 'stamp2') return './ตราปั้มหนังสือรับ 2.png';
-    if (stampKey === 'stamp3') return './ตราปั้มหนังสือรับ 3.png';
     return '';
   }
 
@@ -197,7 +221,7 @@ const StampEngine = (function () {
    */
   async function renderStamp1Canvas(params) {
     const { bookNo = '', receiveDate = '', receiveTime = '' } = params || {};
-    const img = await loadImage(getStampAsset('stamp1'));
+    const img = await loadImage(getStampAsset('stamp1'), 'stamp1');
 
     const canvas = document.createElement('canvas');
     canvas.width = 1774;
@@ -252,7 +276,7 @@ const StampEngine = (function () {
       date = ''
     } = params || {};
 
-    const img = await loadImage(getStampAsset('stamp2'));
+    const img = await loadImage(getStampAsset('stamp2'), 'stamp2');
 
     const canvas = document.createElement('canvas');
     canvas.width = 1774;
@@ -351,7 +375,7 @@ const StampEngine = (function () {
       assignee = ''
     } = params || {};
 
-    const img = await loadImage(getStampAsset('stamp3'));
+    const img = await loadImage(getStampAsset('stamp3'), 'stamp3');
 
     const canvas = document.createElement('canvas');
     canvas.width = 1619;
