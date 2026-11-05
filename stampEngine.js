@@ -91,14 +91,32 @@ const StampEngine = (function () {
       const d = imgData.data;
       let minX = c.width, minY = c.height, maxX = -1, maxY = -1;
 
+      // Check if image has transparent pixels
+      let hasTransparency = false;
+      for (let i = 3; i < d.length; i += 4) {
+        if (d[i] < 200) {
+          hasTransparency = true;
+          break;
+        }
+      }
+
       for (let y = 0; y < c.height; y++) {
         for (let x = 0; x < c.width; x++) {
           const i = (y * c.width + x) * 4;
           const a = d[i + 3];
-          if (a > 15) {
+          if (hasTransparency) {
+            // For transparent images, every visible pixel is part of the signature
+            if (a > 15) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          } else {
+            // For opaque images with white background
             const r = d[i], g = d[i + 1], b = d[i + 2];
             const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (brightness < 230) {
+            if (brightness < 245) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
@@ -111,7 +129,11 @@ const StampEngine = (function () {
       if (maxX >= minX && maxY >= minY) {
         const cropW = maxX - minX + 1;
         const cropH = maxY - minY + 1;
-        const pad = 2;
+        // If already cropped neatly, return original canvas
+        if (cropW >= c.width - 20 && cropH >= c.height - 20) {
+          return c;
+        }
+        const pad = 8;
         const cropCanvas = document.createElement('canvas');
         cropCanvas.width = cropW + pad * 2;
         cropCanvas.height = cropH + pad * 2;

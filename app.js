@@ -34,6 +34,8 @@ const AppState = {
   // Signature Pads & Scaling
   sigPadProposal: null,
   sigPadDirector: null,
+  attachedSigProposal: null,
+  attachedSigDirector: null,
   sigScaleProposal: 1.0,
   sigScaleDirector: 1.0
 };
@@ -1624,17 +1626,44 @@ function createSigPad(canvasId, onChange) {
   const ctx = canvas.getContext('2d');
   let isDrawing = false;
   let hasDrawn = false;
+  let loadedImg = null;
+  let currentDpr = 2;
 
   function resizeCanvas() {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    canvas.width = rect.width * 2;
-    canvas.height = rect.height * 2;
-    ctx.scale(2, 2);
+    currentDpr = Math.max(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(rect.width * currentDpr);
+    canvas.height = Math.round(rect.height * currentDpr);
+    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
     ctx.lineWidth = 3.2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#002299'; // Deep official blue ink
+
+    if (loadedImg) {
+      renderLoadedImage();
+    }
+  }
+
+  function renderLoadedImage() {
+    if (!loadedImg) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const pad = Math.round(12 * currentDpr);
+    const availW = Math.max(canvas.width - pad * 2, 20);
+    const availH = Math.max(canvas.height - pad * 2, 20);
+    const scale = Math.min(availW / loadedImg.width, availH / loadedImg.height);
+    const drawW = loadedImg.width * scale;
+    const drawH = loadedImg.height * scale;
+    const drawX = Math.round((canvas.width - drawW) / 2);
+    const drawY = Math.round((canvas.height - drawH) / 2);
+
+    ctx.drawImage(loadedImg, drawX, drawY, drawW, drawH);
+
+    ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
+    hasDrawn = true;
   }
 
   resizeCanvas();
@@ -1654,6 +1683,11 @@ function createSigPad(canvasId, onChange) {
     e.preventDefault();
     isDrawing = true;
     hasDrawn = true;
+    // Manual drawing overrides attached image
+    loadedImg = null;
+    if (canvasId === 'sigCanvasProposal') AppState.attachedSigProposal = null;
+    if (canvasId === 'sigCanvasDirector') AppState.attachedSigDirector = null;
+
     const pos = getCoords(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
@@ -1685,45 +1719,41 @@ function createSigPad(canvasId, onChange) {
   window.addEventListener('touchend', stop);
 
   return {
+    resize() {
+      resizeCanvas();
+    },
     clear() {
+      loadedImg = null;
+      if (canvasId === 'sigCanvasProposal') AppState.attachedSigProposal = null;
+      if (canvasId === 'sigCanvasDirector') AppState.attachedSigDirector = null;
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.restore();
+      ctx.setTransform(currentDpr, 0, 0, currentDpr, 0, 0);
       hasDrawn = false;
       if (typeof onChange === 'function') {
         onChange();
       }
     },
     isEmpty() {
-      return !hasDrawn;
+      return !hasDrawn && !loadedImg;
     },
     toDataUrl() {
-      if (!hasDrawn) return null;
+      if (!hasDrawn && !loadedImg) return null;
       return canvas.toDataURL('image/png');
     },
     loadDataUrl(url, callback) {
-      if (!url) return;
+      if (!url) {
+        loadedImg = null;
+        hasDrawn = false;
+        return;
+      }
       const img = new Image();
       img.onload = () => {
-        // Reset transform to 1:1 canvas coordinates so image is drawn with true proportions without clipping
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        const pad = 12;
-        const availW = Math.max(canvas.width - pad * 2, 40);
-        const availH = Math.max(canvas.height - pad * 2, 30);
-        const scale = Math.min(availW / img.width, availH / img.height);
-        const drawW = img.width * scale;
-        const drawH = img.height * scale;
-        const drawX = (canvas.width - drawW) / 2;
-        const drawY = (canvas.height - drawH) / 2;
-
-        ctx.drawImage(img, drawX, drawY, drawW, drawH);
-
-        // Restore 2x scale for user drawing
-        ctx.setTransform(2, 0, 0, 2, 0, 0);
-        hasDrawn = true;
+        loadedImg = img;
+        resizeCanvas();
+        renderLoadedImage();
         if (typeof onChange === 'function') onChange();
         if (typeof callback === 'function') callback();
       };
@@ -1770,12 +1800,15 @@ function openProposalModal(docId) {
   const savedPos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
   setStampPositionValues('proposal', savedPos);
 
+  AppState.attachedSigProposal = data.signatureDataUrl || null;
+
   // Show modal first so canvas layout dimensions are computed
   openModal('proposalModal');
 
   // Load signature with canvas properly laid out
   setTimeout(() => {
     if (AppState.sigPadProposal) {
+      AppState.sigPadProposal.resize();
       if (data.signatureDataUrl) {
         AppState.sigPadProposal.loadDataUrl(data.signatureDataUrl, () => {
           updateProposalStampPreview();
@@ -1787,7 +1820,7 @@ function openProposalModal(docId) {
     } else {
       updateProposalStampPreview();
     }
-  }, 80);
+  }, 50);
 }
 
 async function updateProposalStampPreview() {
@@ -1800,7 +1833,7 @@ async function updateProposalStampPreview() {
   };
   const note = (document.getElementById('prop_note').value || '').trim();
   const date = (document.getElementById('prop_date')?.value || '').trim();
-  const signatureDataUrl = AppState.sigPadProposal ? AppState.sigPadProposal.toDataUrl() : null;
+  const signatureDataUrl = AppState.attachedSigProposal || (AppState.sigPadProposal && !AppState.sigPadProposal.isEmpty() ? AppState.sigPadProposal.toDataUrl() : null);
   const signatureScale = AppState.sigScaleProposal || 1.0;
 
   try {
@@ -1841,7 +1874,7 @@ async function handleSaveProposal() {
     };
     const note = (document.getElementById('prop_note').value || '').trim();
     const date = (document.getElementById('prop_date')?.value || '').trim() || doc.receiveDate;
-    const signatureDataUrl = AppState.sigPadProposal ? AppState.sigPadProposal.toDataUrl() : null;
+    const signatureDataUrl = AppState.attachedSigProposal || (AppState.sigPadProposal && !AppState.sigPadProposal.isEmpty() ? AppState.sigPadProposal.toDataUrl() : null);
     const signatureScale = AppState.sigScaleProposal || 1.0;
 
     // 1. Render Stamp 1 & Stamp 2 Canvases
@@ -1934,21 +1967,87 @@ async function handleSaveProposal() {
   }
 }
 
-// Remove white paper background from uploaded signature images and boost ink to bold deep official blue
+// Remove white paper background from uploaded signature images, preserving complete ink strokes and colors
 function removeImageBackground(dataUrl, callback) {
   const img = new Image();
   img.onload = () => {
     try {
+      // Limit resolution to maximum 1600px to keep file size reasonable while preserving ultra-crisp fidelity
+      let srcW = img.width;
+      let srcH = img.height;
+      const maxDim = 1600;
+      if (srcW > maxDim || srcH > maxDim) {
+        const factor = maxDim / Math.max(srcW, srcH);
+        srcW = Math.round(srcW * factor);
+        srcH = Math.round(srcH * factor);
+      }
+
       const c = document.createElement('canvas');
-      c.width = img.width;
-      c.height = img.height;
+      c.width = srcW;
+      c.height = srcH;
       const ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, srcW, srcH);
 
       const imgData = ctx.getImageData(0, 0, c.width, c.height);
       const d = imgData.data;
       const width = c.width;
       const height = c.height;
+
+      // Check if image already has transparent pixels (e.g. transparent PNG signature)
+      let hasTransparentPixels = false;
+      for (let i = 3; i < d.length; i += 4) {
+        if (d[i] < 200) {
+          hasTransparentPixels = true;
+          break;
+        }
+      }
+
+      if (hasTransparentPixels) {
+        // Image already transparent -> keep all ink pixels and original colors exactly as attached
+        let minX = width, minY = height, maxX = -1, maxY = -1;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            if (d[idx + 3] > 15) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+        if (maxX >= minX && maxY >= minY) {
+          const cropW = maxX - minX + 1;
+          const cropH = maxY - minY + 1;
+          const pad = 10;
+          const cropCanvas = document.createElement('canvas');
+          cropCanvas.width = cropW + pad * 2;
+          cropCanvas.height = cropH + pad * 2;
+          const cropCtx = cropCanvas.getContext('2d');
+          cropCtx.drawImage(c, minX, minY, cropW, cropH, pad, pad, cropW, cropH);
+          callback(cropCanvas.toDataURL('image/png'));
+          return;
+        }
+        callback(dataUrl);
+        return;
+      }
+
+      // Scanned/photographed signature on white/light paper:
+      // Sample borders to find true paper brightness
+      const samples = [
+        [0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1],
+        [Math.floor(width / 2), 0], [Math.floor(width / 2), height - 1],
+        [0, Math.floor(height / 2)], [width - 1, Math.floor(height / 2)]
+      ];
+      let maxBgB = 250;
+      for (const [sx, sy] of samples) {
+        const idx = (sy * width + sx) * 4;
+        const sb = 0.299 * d[idx] + 0.587 * d[idx + 1] + 0.114 * d[idx + 2];
+        if (sb > maxBgB) maxBgB = sb;
+      }
+
+      const whiteThreshold = Math.max(242, Math.min(253, maxBgB - 5));
+      const featherStart = whiteThreshold - 25;
 
       let minX = width, minY = height, maxX = -1, maxY = -1;
 
@@ -1960,31 +2059,27 @@ function removeImageBackground(dataUrl, callback) {
           const b = d[idx + 2];
           const a = d[idx + 3];
 
-          // If pixel was already transparent
           if (a < 15) {
             d[idx + 3] = 0;
             continue;
           }
 
-          // Weighted perceived brightness
           const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
 
-          // Pure or light paper background -> make 100% transparent (threshold 235 keeps fine pen strokes intact)
-          if (brightness >= 235) {
+          if (brightness >= whiteThreshold) {
+            // Paper background
             d[idx + 3] = 0;
           } else {
-            // Ink stroke detected: bold, deep official navy blue (RGB: 10, 38, 150)
-            let alpha = a;
-            if (brightness > 200) {
-              // Smooth soft anti-aliased edge
-              alpha = Math.round(a * ((235 - brightness) / 35));
+            // Ink pixel: calculate smooth alpha for antialiasing
+            let alpha = 255;
+            if (brightness > featherStart) {
+              alpha = Math.round(255 * (whiteThreshold - brightness) / (whiteThreshold - featherStart));
+              if (alpha < 0) alpha = 0;
+              if (alpha > 255) alpha = 255;
             }
-            d[idx] = 10;      // Deep navy red channel
-            d[idx + 1] = 38;  // Deep navy green channel
-            d[idx + 2] = 150; // Deep official blue channel
             d[idx + 3] = alpha;
 
-            if (alpha > 20) {
+            if (alpha > 15) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
@@ -2029,16 +2124,22 @@ function handleSigFileUpload(e, type) {
     const rawDataUrl = event.target.result;
     removeImageBackground(rawDataUrl, (cleanDataUrl) => {
       if (type === 'proposal') {
+        AppState.attachedSigProposal = cleanDataUrl;
         if (AppState.sigPadProposal) {
           AppState.sigPadProposal.loadDataUrl(cleanDataUrl, () => {
             updateProposalStampPreview();
           });
+        } else {
+          updateProposalStampPreview();
         }
       } else if (type === 'director') {
+        AppState.attachedSigDirector = cleanDataUrl;
         if (AppState.sigPadDirector) {
           AppState.sigPadDirector.loadDataUrl(cleanDataUrl, () => {
             updateDirectorStampPreview();
           });
+        } else {
+          updateDirectorStampPreview();
         }
       }
     });
@@ -2081,6 +2182,8 @@ function openDirectorModal(docId) {
   const savedPos = doc.stamp3Pos || { preset: 'bottom-right', offsetX: 0, offsetY: 0 };
   setStampPositionValues('director', savedPos);
 
+  AppState.attachedSigDirector = data.signatureDataUrl || null;
+
   // Assignee setup (รองรับเพิ่มมากกว่า 1 คน + ฝ่ายงาน)
   populateTeacherDropdowns();
   const rawAssignee = (doc.assignee && doc.assignee !== '-') ? doc.assignee : '';
@@ -2093,6 +2196,7 @@ function openDirectorModal(docId) {
   // Load signature with canvas properly laid out
   setTimeout(() => {
     if (AppState.sigPadDirector) {
+      AppState.sigPadDirector.resize();
       if (data.signatureDataUrl) {
         AppState.sigPadDirector.loadDataUrl(data.signatureDataUrl, () => {
           updateDirectorStampPreview();
@@ -2104,7 +2208,7 @@ function openDirectorModal(docId) {
     } else {
       updateDirectorStampPreview();
     }
-  }, 80);
+  }, 50);
 }
 
 async function updateDirectorStampPreview() {
@@ -2118,7 +2222,7 @@ async function updateDirectorStampPreview() {
   const directorName = document.getElementById('dir_name').value;
   const date = document.getElementById('dir_date').value;
   const assignee = document.getElementById('directorAssignee').value;
-  const signatureDataUrl = AppState.sigPadDirector ? AppState.sigPadDirector.toDataUrl() : null;
+  const signatureDataUrl = AppState.attachedSigDirector || (AppState.sigPadDirector && !AppState.sigPadDirector.isEmpty() ? AppState.sigPadDirector.toDataUrl() : null);
   const signatureScale = AppState.sigScaleDirector || 1.0;
 
   try {
@@ -2163,7 +2267,7 @@ async function handleSaveDirectorComment() {
     const comment = (document.getElementById('dir_comment').value || '').trim();
     const directorName = (document.getElementById('dir_name').value || '').trim() || 'นายกฤษฎา ผลพล';
     const date = (document.getElementById('dir_date').value || '').trim() || ThaiDateUtil.formatThaiDateShort(new Date());
-    const signatureDataUrl = AppState.sigPadDirector ? AppState.sigPadDirector.toDataUrl() : null;
+    const signatureDataUrl = AppState.attachedSigDirector || (AppState.sigPadDirector && !AppState.sigPadDirector.isEmpty() ? AppState.sigPadDirector.toDataUrl() : null);
     const signatureScale = AppState.sigScaleDirector || 1.0;
 
     // 1. Render all 3 stamps for complete document
