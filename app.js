@@ -2064,9 +2064,18 @@ function removeImageBackground(dataUrl, callback) {
             continue;
           }
 
+          // Detect blue pen ink or colored pen ink (preserves complete signature strokes)
+          const isBlueOrColoredInk = (b > r + 10) || (g > r + 15) || (Math.max(r, g, b) - Math.min(r, g, b) > 15);
           const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
 
-          if (brightness >= whiteThreshold) {
+          if (isBlueOrColoredInk) {
+            // It's genuine ink! Keep 100% full opacity, never erase as background!
+            d[idx + 3] = 255;
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          } else if (brightness >= whiteThreshold) {
             // Paper background
             d[idx + 3] = 0;
           } else {
@@ -2095,7 +2104,7 @@ function removeImageBackground(dataUrl, callback) {
       if (maxX >= minX && maxY >= minY) {
         const cropW = maxX - minX + 1;
         const cropH = maxY - minY + 1;
-        const pad = 12;
+        const pad = 16;
         const cropCanvas = document.createElement('canvas');
         cropCanvas.width = cropW + pad * 2;
         cropCanvas.height = cropH + pad * 2;
@@ -4330,7 +4339,21 @@ async function syncInboundRecordsFromGas(isManual = false) {
           const getVal = (colIdx) => {
             const c = r.c ? r.c[colIdx] : null;
             if (!c) return '';
-            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+            if (c.f !== null && c.f !== undefined && String(c.f).trim() !== '') return String(c.f).trim();
+            if (c.v !== null && c.v !== undefined) {
+              const vStr = String(c.v);
+              if (vStr.startsWith('Date(')) {
+                const parts = vStr.replace(/[^\d,]/g, '').split(',').map(Number);
+                if (parts.length >= 3) {
+                  const y = parts[0];
+                  const m = String(parts[1] + 1).padStart(2, '0');
+                  const d = String(parts[2]).padStart(2, '0');
+                  return `${d}/${m}/${y}`;
+                }
+              }
+              return vStr.trim();
+            }
+            return '';
           };
 
           const id = String(getVal(0) || '').trim();
@@ -5360,7 +5383,21 @@ async function syncOutboundAndOrderFromDatabase() {
           const getVal = (colIdx) => {
             const c = r.c ? r.c[colIdx] : null;
             if (!c) return '';
-            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+            if (c.f !== null && c.f !== undefined && String(c.f).trim() !== '') return String(c.f).trim();
+            if (c.v !== null && c.v !== undefined) {
+              const vStr = String(c.v);
+              if (vStr.startsWith('Date(')) {
+                const parts = vStr.replace(/[^\d,]/g, '').split(',').map(Number);
+                if (parts.length >= 3) {
+                  const y = parts[0];
+                  const m = String(parts[1] + 1).padStart(2, '0');
+                  const d = String(parts[2]).padStart(2, '0');
+                  return `${d}/${m}/${y}`;
+                }
+              }
+              return vStr.trim();
+            }
+            return '';
           };
           const id = String(getVal(0) || '').trim();
           const outboundNo = String(getVal(2) || '').trim();
@@ -5419,7 +5456,21 @@ async function syncOutboundAndOrderFromDatabase() {
           const getVal = (colIdx) => {
             const c = r.c ? r.c[colIdx] : null;
             if (!c) return '';
-            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+            if (c.f !== null && c.f !== undefined && String(c.f).trim() !== '') return String(c.f).trim();
+            if (c.v !== null && c.v !== undefined) {
+              const vStr = String(c.v);
+              if (vStr.startsWith('Date(')) {
+                const parts = vStr.replace(/[^\d,]/g, '').split(',').map(Number);
+                if (parts.length >= 3) {
+                  const y = parts[0];
+                  const m = String(parts[1] + 1).padStart(2, '0');
+                  const d = String(parts[2]).padStart(2, '0');
+                  return `${d}/${m}/${y}`;
+                }
+              }
+              return vStr.trim();
+            }
+            return '';
           };
           const id = String(getVal(0) || '').trim();
           const orderNo = String(getVal(2) || '').trim();

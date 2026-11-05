@@ -132,8 +132,9 @@ const StampEngine = (function () {
           } else {
             // For opaque images with white background
             const r = d[i], g = d[i + 1], b = d[i + 2];
+            const isBlueOrColoredInk = (b > r + 10) || (g > r + 15) || (Math.max(r, g, b) - Math.min(r, g, b) > 15);
             const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-            if (brightness < 245) {
+            if (isBlueOrColoredInk || brightness < 246) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
@@ -147,10 +148,10 @@ const StampEngine = (function () {
         const cropW = maxX - minX + 1;
         const cropH = maxY - minY + 1;
         // If already cropped neatly, return original canvas
-        if (cropW >= c.width - 20 && cropH >= c.height - 20) {
+        if (cropW >= c.width - 15 && cropH >= c.height - 15) {
           return c;
         }
-        const pad = 3;
+        const pad = 10;
         const cropCanvas = document.createElement('canvas');
         cropCanvas.width = cropW + pad * 2;
         cropCanvas.height = cropH + pad * 2;
@@ -360,28 +361,28 @@ const StampEngine = (function () {
     // Draw base stamp
     ctx.drawImage(img, 0, 0, 1619, 972);
 
-    // Checkboxes Row 1 (center Y = 300)
-    // ทราบ: X = 215, Y = 300
-    if (checkboxes.ack) drawCheckmark(ctx, 215, 300, 36);
-    // ดำเนินการตาม: X = 710, Y = 300
-    if (checkboxes.follow) drawCheckmark(ctx, 710, 300, 36);
+    // Checkboxes Row 1 (center Y = 283)
+    // ทราบ: X = 183, Y = 283
+    if (checkboxes.ack) drawCheckmark(ctx, 183, 283, 38);
+    // ดำเนินการตาม: X = 726, Y = 283
+    if (checkboxes.follow) drawCheckmark(ctx, 726, 283, 38);
 
-    // Checkboxes Row 2 (center Y = 408)
-    // เห็นชอบ: X = 215, Y = 408
-    if (checkboxes.agree) drawCheckmark(ctx, 215, 408, 36);
-    // อนุมัติ: X = 710, Y = 408
-    if (checkboxes.approve) drawCheckmark(ctx, 710, 408, 36);
+    // Checkboxes Row 2 (center Y = 391)
+    // เห็นชอบ: X = 183, Y = 391
+    if (checkboxes.agree) drawCheckmark(ctx, 183, 391, 38);
+    // อนุมัติ: X = 726, Y = 391
+    if (checkboxes.approve) drawCheckmark(ctx, 726, 391, 38);
 
     ctx.fillStyle = STAMP_BLUE;
     ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     ctx.textBaseline = 'bottom';
 
-    // Comment Line 1 (Above dots at Y=520 -> baseline at Y=508)
+    // Comment Line 1 (Above dots at Y=502 -> baseline at Y=492)
     if (comment) {
-      ctx.fillText(comment, 180, 508);
+      ctx.fillText(comment, 180, 492);
     }
 
-    // Assignee Line 2 (Above dots at Y=610 -> baseline at Y=598)
+    // Assignee Line 2 (Above dots at Y=585 -> baseline at Y=575)
     if (assignee) {
       const assigneeText = 'มอบ: ' + assignee;
       const maxAssigneeW = 1360; // Available width before right border
@@ -393,7 +394,7 @@ const StampEngine = (function () {
         ctx.font = `bold ${fontSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
         textW = ctx.measureText(assigneeText).width;
       }
-      ctx.fillText(assigneeText, 180, 598);
+      ctx.fillText(assigneeText, 180, 575);
       // Reset font back to default
       ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     }
@@ -409,37 +410,30 @@ const StampEngine = (function () {
         const scale = Math.min(maxW / sigImg.width, maxH / sigImg.height);
         const w = sigImg.width * scale;
         const h = sigImg.height * scale;
-        // Center X = 980 (center of dotted line X=695 to X=1316), bottom anchored at Y = 693 (just 2px above dots at Y=695)
-        ctx.drawImage(sigImg, 980 - w / 2, 693 - h, w, h);
+        // Center X = 980 (center of dotted line X=695 to X=1316), bottom anchored at Y = 694 (just 1px above dots at Y=695)
+        ctx.drawImage(sigImg, 980 - w / 2, 694 - h, w, h);
       } catch (e) {
         console.warn('Failed to draw signature 3', e);
       }
     }
 
-    // Director Name in parentheses: ( นายกฤษฎา ผลพล ) strictly ABOVE dots (dots at Y=786 -> baseline at Y=776)
-    if (directorName) {
-      const nameText = '(' + directorName + ')';
-      ctx.textAlign = 'center';
-      ctx.fillText(nameText, 894, 776);
-      ctx.textAlign = 'start';
-    }
-
-    // Date: Formatted as Day before 1st '/', Month before 2nd '/', Year after 2nd '/'
-    // Slashes on stamp: Slash 1 at X=780, Slash 2 at X=1088. Dots at Y=834 -> baseline at Y=822
+    // Date on New Stamp 3: Formatted as Day before 1st '/', Month before 2nd '/', Year after 2nd '/'
+    // Slashes on new stamp 3: Slash 1 at X=754, Slash 2 at X=1057. Dots at Y=786 -> baseline at Y=776
+    // Note: The new Stamp 3 design removed the director name in parentheses line completely.
     if (date) {
       const { day, month, year } = parseDateSegments(date);
       ctx.textAlign = 'center';
-      // 1. วัน อยู่หน้า / (Center X = 665)
+      // 1. วัน อยู่หน้า / (Center X = 620)
       if (day) {
-        ctx.fillText(day, 665, 822);
+        ctx.fillText(day, 620, 776);
       }
-      // 2. เดือน อยู่หน้า / (Center X = 934, between slashes)
+      // 2. เดือน อยู่หน้า / (Center X = 905, between slashes)
       if (month) {
-        ctx.fillText(month, 934, 822);
+        ctx.fillText(month, 905, 776);
       }
-      // 3. ปี หลัง / (Center X = 1200)
+      // 3. ปี หลัง / (Center X = 1180)
       if (year) {
-        ctx.fillText(year, 1200, 822);
+        ctx.fillText(year, 1180, 776);
       }
       ctx.textAlign = 'start';
     }
@@ -590,12 +584,27 @@ const StampEngine = (function () {
     defaultMargin = 18
   }) {
     if (!stampCanvas) return;
-    const dataUrl = stampCanvas.toDataURL('image/png');
-    const pngBase64 = dataUrl.split(',')[1];
-    const binaryString = atob(pngBase64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    let bytes = null;
+    if (typeof stampCanvas.toBlob === 'function') {
+      try {
+        const blob = await new Promise(r => stampCanvas.toBlob(r, 'image/png'));
+        if (blob) {
+          bytes = new Uint8Array(await blob.arrayBuffer());
+        }
+      } catch (eBlob) {
+        console.warn('Canvas toBlob failed:', eBlob);
+      }
+    }
+    if (!bytes || bytes.length === 0) {
+      const dataUrl = stampCanvas.toDataURL('image/png');
+      const commaIdx = dataUrl.indexOf(',');
+      let b64 = (commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl).replace(/\s/g, '');
+      while (b64.length % 4 !== 0) b64 += '=';
+      const binaryString = atob(b64);
+      bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
     }
     const stampImage = await pdfDoc.embedPng(bytes);
     const totalPages = pages.length;
@@ -728,16 +737,78 @@ const StampEngine = (function () {
       stamp3Pos
     } = options;
 
+    // Helper: Rasterize PDF pages using PDF.js for encrypted/permission-locked documents
+    async function rasterizeEncryptedPdf(rawBytes) {
+      if (!window.pdfjsLib || !window.PDFLib) return null;
+      const loadingTask = window.pdfjsLib.getDocument({
+        data: rawBytes,
+        password: '',
+        disableAutoFetch: true,
+        disableStream: true
+      });
+      const pdfJsDoc = await loadingTask.promise;
+      const newPdfDoc = await PDFLib.PDFDocument.create();
+      const numPages = pdfJsDoc.numPages;
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdfJsDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 2.0 }); // High-DPI for crisp quality
+        const offscreen = document.createElement('canvas');
+        offscreen.width = Math.round(viewport.width);
+        offscreen.height = Math.round(viewport.height);
+        const offCtx = offscreen.getContext('2d');
+        await page.render({ canvasContext: offCtx, viewport }).promise;
+
+        // Convert page canvas to JPEG image (optimal balance of clarity and file size)
+        const blob = await new Promise(r => offscreen.toBlob(r, 'image/jpeg', 0.92));
+        const imgBytes = new Uint8Array(await blob.arrayBuffer());
+        const embeddedImg = await newPdfDoc.embedJpg(imgBytes);
+
+        // Page dimensions in standard PDF points (72 DPI)
+        const origViewport = page.getViewport({ scale: 1.0 });
+        const newPage = newPdfDoc.addPage([origViewport.width, origViewport.height]);
+        newPage.drawImage(embeddedImg, {
+          x: 0,
+          y: 0,
+          width: origViewport.width,
+          height: origViewport.height
+        });
+      }
+      return newPdfDoc;
+    }
+
     // Load PDF with decryption support for encrypted/permission-restricted government PDFs
-    let pdfDoc;
+    let pdfDoc = null;
     try {
-      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, {
+        ignoreEncryption: true,
+        updateMetadata: false,
+        throwOnInvalidObject: false
+      });
     } catch (err1) {
       try {
-        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true, password: '' });
+        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, {
+          password: '',
+          ignoreEncryption: true,
+          updateMetadata: false,
+          throwOnInvalidObject: false
+        });
       } catch (err2) {
-        pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+        console.warn('PDFLib standard loading failed, falling back to pdf.js rasterization:', err2);
       }
+    }
+
+    if (!pdfDoc) {
+      try {
+        pdfDoc = await rasterizeEncryptedPdf(pdfBytes);
+      } catch (errRast) {
+        console.error('Rasterization fallback error:', errRast);
+      }
+    }
+
+    if (!pdfDoc) {
+      // Final attempt: standard ignoreEncryption
+      pdfDoc = await PDFLib.PDFDocument.load(pdfBytes, { ignoreEncryption: true });
     }
     const pages = pdfDoc.getPages();
 
