@@ -1226,8 +1226,8 @@
           <div class="form-group" style="margin-bottom: 12px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
               <label class="form-label" style="margin-bottom: 0;">
-                <i class="fa-solid fa-user-check text-primary"></i> ผู้รับผิดชอบ <span class="required">*</span>
-                <span style="font-size: 11.5px; color: #64748b; font-weight: normal;">(เพิ่มได้มากกว่า 1 คน)</span>
+                <i class="fa-solid fa-user-check text-primary"></i> ผู้รับผิดชอบ
+                <span style="font-size: 11.5px; color: #64748b; font-weight: normal;">(ไม่บังคับเลือก / เพิ่มได้มากกว่า 1 คน)</span>
               </label>
               <button type="button" class="btn btn-outline btn-sm" onclick="clearAllAssignees()" id="btnClearAssignees" style="display: none; padding: 1px 6px; font-size: 11px; color: #dc2626; border-color: #fca5a5;">
                 <i class="fa-solid fa-xmark"></i> ล้างทั้งหมด
@@ -1266,7 +1266,7 @@
             </div>
 
             <!-- Hidden Input สำหรับเก็บชื่อผู้รับผิดชอบทั้งหมดส่งต่อไปบันทึกและปั๊มตรา -->
-            <input type="hidden" id="directorAssignee" value="" required>
+            <input type="hidden" id="directorAssignee" value="">
           </div>
 
           <div class="form-grid-2" style="margin-bottom: 12px;">

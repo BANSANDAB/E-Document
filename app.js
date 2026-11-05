@@ -1703,23 +1703,26 @@ function createSigPad(canvasId, onChange) {
       return canvas.toDataURL('image/png');
     },
     loadDataUrl(url, callback) {
+      if (!url) return;
       const img = new Image();
       img.onload = () => {
-        const rect = canvas.getBoundingClientRect();
-        ctx.save();
+        // Reset transform to 1:1 canvas coordinates so image is drawn with true proportions without clipping
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.restore();
 
-        const padW = Math.max(rect.width - 20, 40);
-        const padH = Math.max(rect.height - 20, 30);
-        const scale = Math.min(padW / img.width, padH / img.height, 1);
+        const pad = 12;
+        const availW = Math.max(canvas.width - pad * 2, 40);
+        const availH = Math.max(canvas.height - pad * 2, 30);
+        const scale = Math.min(availW / img.width, availH / img.height);
         const drawW = img.width * scale;
         const drawH = img.height * scale;
-        const drawX = (rect.width - drawW) / 2;
-        const drawY = (rect.height - drawH) / 2;
+        const drawX = (canvas.width - drawW) / 2;
+        const drawY = (canvas.height - drawH) / 2;
 
         ctx.drawImage(img, drawX, drawY, drawW, drawH);
+
+        // Restore 2x scale for user drawing
+        ctx.setTransform(2, 0, 0, 2, 0, 0);
         hasDrawn = true;
         if (typeof onChange === 'function') onChange();
         if (typeof callback === 'function') callback();
@@ -1767,18 +1770,24 @@ function openProposalModal(docId) {
   const savedPos = doc.stamp2Pos || { preset: 'bottom-left', offsetX: 0, offsetY: 0 };
   setStampPositionValues('proposal', savedPos);
 
-  if (AppState.sigPadProposal) {
-    AppState.sigPadProposal.clear();
-    if (data.signatureDataUrl) {
-      AppState.sigPadProposal.loadDataUrl(data.signatureDataUrl);
-    }
-  }
-
-  // Update live preview
-  updateProposalStampPreview();
-
-  // Show modal
+  // Show modal first so canvas layout dimensions are computed
   openModal('proposalModal');
+
+  // Load signature with canvas properly laid out
+  setTimeout(() => {
+    if (AppState.sigPadProposal) {
+      if (data.signatureDataUrl) {
+        AppState.sigPadProposal.loadDataUrl(data.signatureDataUrl, () => {
+          updateProposalStampPreview();
+        });
+      } else {
+        AppState.sigPadProposal.clear();
+        updateProposalStampPreview();
+      }
+    } else {
+      updateProposalStampPreview();
+    }
+  }, 80);
 }
 
 async function updateProposalStampPreview() {
@@ -1859,7 +1868,10 @@ async function handleSaveProposal() {
     doc.proposalCustomPos = stamp2Pos;
 
     if (doc.fileType === 'application/pdf') {
-      const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
+      const originalBytes = await ensureDocumentBytes(doc);
+      if (!originalBytes || originalBytes.length === 0) {
+        throw new Error('ไม่พบไฟล์เอกสาร PDF ต้นฉบับในเครื่องหรือบน Google Drive');
+      }
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
         pdfBytes: originalBytes,
         stamp1Canvas: stamp1.canvas,
@@ -1870,6 +1882,10 @@ async function handleSaveProposal() {
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
       doc.stampedDataUrl = await blobToDataUrl(blob);
     } else {
+      if (!doc.originalDataUrl && doc.driveFileUrl) {
+        const loaded = await fetchFileFromDriveViaGas(doc.driveFileUrl);
+        if (loaded && loaded.dataUrl) doc.originalDataUrl = loaded.dataUrl;
+      }
       const stampedImg = await StampEngine.stampImageDocument({
         imageSource: doc.originalDataUrl,
         stamp1Canvas: stamp1.canvas,
@@ -1953,22 +1969,22 @@ function removeImageBackground(dataUrl, callback) {
           // Weighted perceived brightness
           const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
 
-          // Pure or light paper background -> make 100% transparent
-          if (brightness >= 215) {
+          // Pure or light paper background -> make 100% transparent (threshold 235 keeps fine pen strokes intact)
+          if (brightness >= 235) {
             d[idx + 3] = 0;
           } else {
             // Ink stroke detected: bold, deep official navy blue (RGB: 10, 38, 150)
-            let alpha = 255;
-            if (brightness > 195) {
+            let alpha = a;
+            if (brightness > 200) {
               // Smooth soft anti-aliased edge
-              alpha = Math.round(255 * ((215 - brightness) / 20));
+              alpha = Math.round(a * ((235 - brightness) / 35));
             }
             d[idx] = 10;      // Deep navy red channel
             d[idx + 1] = 38;  // Deep navy green channel
             d[idx + 2] = 150; // Deep official blue channel
             d[idx + 3] = alpha;
 
-            if (alpha > 40) {
+            if (alpha > 20) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
@@ -1980,11 +1996,11 @@ function removeImageBackground(dataUrl, callback) {
 
       ctx.putImageData(imgData, 0, 0);
 
-      // Crop tightly to ink bounding box so position stays anchored exactly
+      // Crop neatly to ink bounding box with generous padding so nothing is cut off
       if (maxX >= minX && maxY >= minY) {
         const cropW = maxX - minX + 1;
         const cropH = maxY - minY + 1;
-        const pad = 4;
+        const pad = 12;
         const cropCanvas = document.createElement('canvas');
         cropCanvas.width = cropW + pad * 2;
         cropCanvas.height = cropH + pad * 2;
@@ -2071,15 +2087,24 @@ function openDirectorModal(docId) {
   currentDirectorAssignees = rawAssignee ? rawAssignee.split(',').map(s => s.trim()).filter(Boolean) : [];
   syncAssigneeUI();
 
-  if (AppState.sigPadDirector) {
-    AppState.sigPadDirector.clear();
-    if (data.signatureDataUrl) {
-      AppState.sigPadDirector.loadDataUrl(data.signatureDataUrl);
-    }
-  }
-
-  updateDirectorStampPreview();
+  // Show modal first so canvas layout dimensions are computed
   openModal('directorModal');
+
+  // Load signature with canvas properly laid out
+  setTimeout(() => {
+    if (AppState.sigPadDirector) {
+      if (data.signatureDataUrl) {
+        AppState.sigPadDirector.loadDataUrl(data.signatureDataUrl, () => {
+          updateDirectorStampPreview();
+        });
+      } else {
+        AppState.sigPadDirector.clear();
+        updateDirectorStampPreview();
+      }
+    } else {
+      updateDirectorStampPreview();
+    }
+  }, 80);
 }
 
 async function updateDirectorStampPreview() {
@@ -2120,11 +2145,7 @@ async function handleSaveDirectorComment() {
   const doc = AppState.records.find(r => r.id === AppState.currentDocId);
   if (!doc) return;
 
-  const assignee = (document.getElementById('directorAssignee')?.value || '').trim();
-  if (!assignee || currentDirectorAssignees.length === 0) {
-    showToast('กรุณาเลือกผู้รับผิดชอบอย่างน้อย 1 คน (คลิกเลือกฝ่ายงาน หรือเลือกรายชื่อ)', 'warning');
-    return;
-  }
+  const assignee = (document.getElementById('directorAssignee')?.value || '').trim() || '-';
 
   const btn = document.getElementById('btnSaveDirector');
   if (btn) {
@@ -2188,7 +2209,10 @@ async function handleSaveDirectorComment() {
     doc.directorCustomPos = stamp3Pos;
 
     if (doc.fileType === 'application/pdf') {
-      const originalBytes = await dataUrlToBytes(doc.originalDataUrl);
+      const originalBytes = await ensureDocumentBytes(doc);
+      if (!originalBytes || originalBytes.length === 0) {
+        throw new Error('ไม่พบเอกสาร PDF ต้นฉบับจากระบบหรือ Google Drive');
+      }
       const stampedPdfBytes = await StampEngine.stampPdfDocument({
         pdfBytes: originalBytes,
         stamp1Canvas: stamp1.canvas,
@@ -2201,6 +2225,10 @@ async function handleSaveDirectorComment() {
       const blob = new Blob([stampedPdfBytes], { type: 'application/pdf' });
       doc.stampedDataUrl = await blobToDataUrl(blob);
     } else {
+      if (!doc.originalDataUrl && doc.driveFileUrl) {
+        const loaded = await fetchFileFromDriveViaGas(doc.driveFileUrl);
+        if (loaded && loaded.dataUrl) doc.originalDataUrl = loaded.dataUrl;
+      }
       const stampedImg = await StampEngine.stampImageDocument({
         imageSource: doc.originalDataUrl,
         stamp1Canvas: stamp1.canvas,
@@ -2242,7 +2270,7 @@ async function handleSaveDirectorComment() {
     renderAllTables();
     updateKpiStats();
 
-    showToast(`ประทับตรา "ความเห็น ผอ." และมอบหมายงานให้ ${assignee} เรียบร้อยแล้ว!`, 'success');
+    showToast(assignee && assignee !== '-' ? `ประทับตรา "ความเห็น ผอ." และมอบหมายงานให้ ${assignee} เรียบร้อยแล้ว!` : 'ประทับตรา "ความเห็น ผอ." เรียบร้อยแล้ว!', 'success');
   } catch (err) {
     console.error('Error saving director stamp:', err);
     showToast('เกิดข้อผิดพลาดในการประทับตราความเห็น ผอ.: ' + err.message, 'danger');
@@ -2622,8 +2650,9 @@ async function openDocumentPositionSelector(type = 'inbound') {
     }
     targetFile = {
       type: targetDoc.fileType,
-      bytes: null,
-      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl
+      bytes: targetDoc.bytes || null,
+      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl,
+      driveFileUrl: targetDoc.driveFileUrl || (targetDoc.files && targetDoc.files[0] && targetDoc.files[0].driveFileUrl)
     };
     if (titleEl) titleEl.textContent = 'เลือกตำแหน่งตราเสนอ ผอ. บนหน้าเอกสารจริง (ปรับย่อ-ขยายและเลือกหน้าได้)';
     if (labelEl) labelEl.textContent = 'บันทึกเสนอ ผอ.';
@@ -2638,8 +2667,9 @@ async function openDocumentPositionSelector(type = 'inbound') {
     }
     targetFile = {
       type: targetDoc.fileType,
-      bytes: null,
-      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl
+      bytes: targetDoc.bytes || null,
+      dataUrl: targetDoc.stampedDataUrl || targetDoc.originalDataUrl,
+      driveFileUrl: targetDoc.driveFileUrl || (targetDoc.files && targetDoc.files[0] && targetDoc.files[0].driveFileUrl)
     };
     if (titleEl) titleEl.textContent = 'เลือกตำแหน่งตราสั่งการและลงนาม ผอ. บนหน้าเอกสารจริง (ปรับย่อ-ขยายและเลือกหน้าได้)';
     if (labelEl) labelEl.textContent = 'คำสั่งการ/ลงนาม ผอ.';
@@ -2837,18 +2867,38 @@ async function openDocumentPositionSelector(type = 'inbound') {
       if (!pdfSource && targetFile.dataUrl) {
         pdfSource = await dataUrlToBytes(targetFile.dataUrl);
       }
-      if (!pdfSource) throw new Error('ไม่พบข้อมูลไฟล์ PDF สำหรับแสดงตัวอย่าง');
+      if (!pdfSource && targetDoc) {
+        pdfSource = await ensureDocumentBytes(targetDoc);
+      }
+      if (!pdfSource && targetFile.driveFileUrl) {
+        const loaded = await fetchFileFromDriveViaGas(targetFile.driveFileUrl);
+        if (loaded && loaded.bytes) pdfSource = loaded.bytes;
+        else if (loaded && loaded.dataUrl) pdfSource = await dataUrlToBytes(loaded.dataUrl);
+      }
+      if (!pdfSource) throw new Error('ไม่พบข้อมูลไฟล์ PDF กรุณาตรวจสอบว่ามีไฟล์แนบหรือเชื่อมต่อ Google Drive ถูกต้อง');
 
       if (!window.pdfjsLib) {
         throw new Error('ระบบกำลังโหลดตัวแปลงเอกสาร PDF กรุณาลองใหม่อีกครั้ง');
       }
 
-      const loadingTask = window.pdfjsLib.getDocument({
-        data: pdfSource,
-        cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/cmaps/',
-        cMapPacked: true
-      });
-      const pdf = await loadingTask.promise;
+      let pdf;
+      try {
+        const loadingTask = window.pdfjsLib.getDocument({
+          data: pdfSource,
+          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/cmaps/',
+          cMapPacked: true
+        });
+        pdf = await loadingTask.promise;
+      } catch (workerErr) {
+        console.warn('Standard PDF.js worker load failed, trying disableWorker fallback:', workerErr);
+        const fallbackTask = window.pdfjsLib.getDocument({
+          data: pdfSource,
+          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/cmaps/',
+          cMapPacked: true,
+          disableWorker: true
+        });
+        pdf = await fallbackTask.promise;
+      }
       ActivePositionPicker.pdfDoc = pdf;
       ActivePositionPicker.totalPages = pdf.numPages || 1;
 
@@ -2883,11 +2933,21 @@ async function openDocumentPositionSelector(type = 'inbound') {
       if (prevBtn) prevBtn.disabled = true;
       if (nextBtn) nextBtn.disabled = true;
 
+      let imgSrc = targetFile.dataUrl;
+      if (!imgSrc && targetDoc) {
+        const driveUrl = targetDoc.driveFileUrl || (targetDoc.files && targetDoc.files[0] && targetDoc.files[0].driveFileUrl);
+        if (driveUrl) {
+          const loaded = await fetchFileFromDriveViaGas(driveUrl);
+          if (loaded && loaded.dataUrl) imgSrc = loaded.dataUrl;
+        }
+      }
+      if (!imgSrc) throw new Error('ไม่พบรูปภาพเอกสาร');
+
       const img = new Image();
       await new Promise((resolve, reject) => {
         img.onload = resolve;
-        img.onerror = reject;
-        img.src = targetFile.dataUrl;
+        img.onerror = () => reject(new Error('ไม่สามารถโหลดรูปภาพเอกสารได้'));
+        img.src = imgSrc;
       });
 
       const scale = targetWidth / (img.naturalWidth || 600);
@@ -4448,14 +4508,104 @@ function blobToDataUrl(blob) {
 
 function dataUrlToBytes(dataUrl) {
   return new Promise((resolve) => {
-    const base64 = dataUrl.split(',')[1];
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+    if (!dataUrl || typeof dataUrl !== 'string') {
+      resolve(null);
+      return;
     }
-    resolve(bytes);
+    try {
+      const commaIdx = dataUrl.indexOf(',');
+      const base64Str = (commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl).replace(/\s/g, '');
+      if (!base64Str) {
+        resolve(null);
+        return;
+      }
+      const binary = atob(base64Str);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      resolve(bytes);
+    } catch (e) {
+      console.warn('dataUrlToBytes decode warning safely handled:', e);
+      resolve(null);
+    }
   });
+}
+
+function extractDriveFileId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const match = url.match(/[-\w]{25,}/);
+  return match ? match[0] : null;
+}
+
+async function fetchFileFromDriveViaGas(driveUrl) {
+  if (!AppState.gasWebAppUrl || !driveUrl) return null;
+  const fileId = extractDriveFileId(driveUrl);
+  if (!fileId) return null;
+
+  try {
+    const url = `${AppState.gasWebAppUrl}${AppState.gasWebAppUrl.includes('?') ? '&' : '?'}action=getFileBase64&fileId=${fileId}&t=${Date.now()}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json && json.status === 'success' && json.dataUrl) {
+      return json;
+    }
+  } catch (e) {
+    console.warn('Failed to fetch file from Drive via GAS:', e);
+  }
+  return null;
+}
+
+async function ensureDocumentBytes(doc) {
+  if (!doc) return null;
+
+  // 1. In-memory Uint8Array
+  if (doc.bytes instanceof Uint8Array && doc.bytes.length > 0) {
+    return doc.bytes;
+  }
+
+  // 2. originalDataUrl
+  if (doc.originalDataUrl) {
+    const b = await dataUrlToBytes(doc.originalDataUrl);
+    if (b && b.length > 0) return b;
+  }
+
+  // 3. stampedDataUrl
+  if (doc.stampedDataUrl) {
+    const b = await dataUrlToBytes(doc.stampedDataUrl);
+    if (b && b.length > 0) return b;
+  }
+
+  // 4. Files array
+  if (Array.isArray(doc.files) && doc.files.length > 0) {
+    for (const f of doc.files) {
+      if (f.bytes instanceof Uint8Array && f.bytes.length > 0) return f.bytes;
+      if (f.originalDataUrl) {
+        const b = await dataUrlToBytes(f.originalDataUrl);
+        if (b && b.length > 0) return b;
+      }
+      if (f.stampedDataUrl) {
+        const b = await dataUrlToBytes(f.stampedDataUrl);
+        if (b && b.length > 0) return b;
+      }
+    }
+  }
+
+  // 5. Fetch from Google Drive via GAS Web App proxy (enables cross-device stamping and positioning!)
+  if (doc.driveFileUrl) {
+    const loaded = await fetchFileFromDriveViaGas(doc.driveFileUrl);
+    if (loaded && loaded.dataUrl) {
+      doc.originalDataUrl = loaded.dataUrl;
+      const b = await dataUrlToBytes(loaded.dataUrl);
+      if (b && b.length > 0) {
+        saveRecordsToStorage();
+        return b;
+      }
+    }
+  }
+
+  return null;
 }
 
 /* ==========================================================================

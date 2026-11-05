@@ -143,6 +143,9 @@ function doGet(e) {
         result = { status: 'success', data: getOutboundRecords() };
       } else if (action === 'getOrderRecords') {
         result = { status: 'success', data: getOrderRecords() };
+      } else if (action === 'getFileBase64') {
+        const fileId = e.parameter.fileId || extractDriveFileId(e.parameter.url || '');
+        result = getDriveFileBase64(fileId);
       } else if (action === 'cleanDuplicates') {
         result = cleanUpDuplicatesAndTests();
       } else if (action === 'cleanDrive') {
@@ -556,6 +559,27 @@ function extractDriveFileId(url) {
   if (!url || typeof url !== 'string') return null;
   const match = url.match(/[-\w]{25,}/);
   return match ? match[0] : null;
+}
+
+/**
+ * ดึงไฟล์จาก Google Drive และแปลงเป็น Base64 Data URL สำหรับส่งกลับให้ Client
+ */
+function getDriveFileBase64(fileId) {
+  try {
+    if (!fileId) return { status: 'error', message: 'No fileId provided' };
+    const file = DriveApp.getFileById(fileId);
+    const blob = file.getBlob();
+    const bytes = blob.getBytes();
+    const base64 = Utilities.base64Encode(bytes);
+    return {
+      status: 'success',
+      fileName: file.getName(),
+      mimeType: blob.getContentType(),
+      dataUrl: 'data:' + blob.getContentType() + ';base64,' + base64
+    };
+  } catch (err) {
+    return { status: 'error', message: err.toString() };
+  }
 }
 
 /**
