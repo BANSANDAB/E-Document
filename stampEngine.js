@@ -21,7 +21,24 @@ const StampEngine = (function () {
         imageCache[src] = img;
         resolve(img);
       };
-      img.onerror = (err) => reject(new Error('Failed to load stamp image: ' + err));
+      img.onerror = () => {
+        // Fallback to alternate Thai spelling (ไม้โท ้ vs ไม้ตรี ๊)
+        let altSrc = null;
+        if (src.includes('ตราปั้ม')) altSrc = src.replace('ตราปั้ม', 'ตราปั๊ม');
+        else if (src.includes('ตราปั๊ม')) altSrc = src.replace('ตราปั๊ม', 'ตราปั้ม');
+        if (altSrc) {
+          const altImg = new Image();
+          altImg.crossOrigin = 'anonymous';
+          altImg.onload = () => {
+            imageCache[src] = altImg;
+            resolve(altImg);
+          };
+          altImg.onerror = () => reject(new Error('Failed to load stamp image: ' + src));
+          altImg.src = altSrc;
+        } else {
+          reject(new Error('Failed to load stamp image: ' + src));
+        }
+      };
       img.src = src;
     });
   }
@@ -133,7 +150,7 @@ const StampEngine = (function () {
         if (cropW >= c.width - 20 && cropH >= c.height - 20) {
           return c;
         }
-        const pad = 8;
+        const pad = 3;
         const cropCanvas = document.createElement('canvas');
         cropCanvas.width = cropW + pad * 2;
         cropCanvas.height = cropH + pad * 2;
@@ -269,19 +286,19 @@ const StampEngine = (function () {
       ctx.fillText(textToDraw, 140, 526);
     }
 
-    // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=630) with scalable sizing anchored on baseline
+    // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=630) with scalable sizing anchored close to baseline
     if (signatureDataUrl) {
       try {
         const rawSigImg = await loadImage(signatureDataUrl);
         const sigImg = trimSignatureImage(rawSigImg);
         const scaleMultiplier = Math.max(0.4, Math.min(2.5, Number(signatureScale) || 1.0));
-        const maxW = 520 * scaleMultiplier;
-        const maxH = 135 * scaleMultiplier;
+        const maxW = 540 * scaleMultiplier;
+        const maxH = 145 * scaleMultiplier;
         const scale = Math.min(maxW / sigImg.width, maxH / sigImg.height);
         const w = sigImg.width * scale;
         const h = sigImg.height * scale;
-        // Center X = 960 (center of dotted line), bottom anchored at Y = 624 (directly above dots at Y=630)
-        ctx.drawImage(sigImg, 960 - w / 2, 624 - h, w, h);
+        // Center X = 960 (center of dotted line X=534 to X=1385), bottom anchored at Y = 628 (just 2px above dots at Y=630)
+        ctx.drawImage(sigImg, 960 - w / 2, 628 - h, w, h);
       } catch (e) {
         console.warn('Failed to draw signature 2', e);
       }
@@ -381,29 +398,29 @@ const StampEngine = (function () {
       ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     }
 
-    // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=712 -> bottom at Y=704) with scalable sizing anchored on baseline
+    // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=695) with scalable sizing anchored close to baseline
     if (signatureDataUrl) {
       try {
         const rawSigImg = await loadImage(signatureDataUrl);
         const sigImg = trimSignatureImage(rawSigImg);
         const scaleMultiplier = Math.max(0.4, Math.min(2.5, Number(signatureScale) || 1.0));
-        const maxW = 520 * scaleMultiplier;
-        const maxH = 135 * scaleMultiplier;
+        const maxW = 540 * scaleMultiplier;
+        const maxH = 145 * scaleMultiplier;
         const scale = Math.min(maxW / sigImg.width, maxH / sigImg.height);
         const w = sigImg.width * scale;
         const h = sigImg.height * scale;
-        // Center X = 880 (center of dotted line), bottom anchored at Y = 704 (directly above dots at Y=712)
-        ctx.drawImage(sigImg, 880 - w / 2, 704 - h, w, h);
+        // Center X = 980 (center of dotted line X=695 to X=1316), bottom anchored at Y = 693 (just 2px above dots at Y=695)
+        ctx.drawImage(sigImg, 980 - w / 2, 693 - h, w, h);
       } catch (e) {
         console.warn('Failed to draw signature 3', e);
       }
     }
 
-    // Director Name in parentheses: ( นายกฤษฎา ผลพล ) strictly ABOVE dots (dots at Y=778 -> baseline at Y=766)
+    // Director Name in parentheses: ( นายกฤษฎา ผลพล ) strictly ABOVE dots (dots at Y=786 -> baseline at Y=776)
     if (directorName) {
       const nameText = '(' + directorName + ')';
       ctx.textAlign = 'center';
-      ctx.fillText(nameText, 880, 766);
+      ctx.fillText(nameText, 894, 776);
       ctx.textAlign = 'start';
     }
 
