@@ -4064,35 +4064,32 @@ const StorageDB = {
 };
 
 /* ==========================================================================
-   Google Apps Script Sync & Storage
+   Google Apps Script Sync & Storage (ยึดฐานข้อมูล Google Sheet เป็นหลักสูงสุด)
    ========================================================================== */
 async function loadStoredRecords() {
   try {
-    // 1. Try to load from IndexedDB first (stores complete files and signatures)
+    // 1. Initial attempt: read storage so we have local files and cache structure ready
     const idbData = await StorageDB.get('inbound_book_records');
     if (Array.isArray(idbData) && idbData.length > 0) {
       AppState.records = idbData;
-      console.log('Loaded inbound records from IndexedDB:', idbData.length);
     } else {
-      // 2. Fallback to localStorage
       const raw = localStorage.getItem('inbound_book_records');
       if (raw) {
         AppState.records = JSON.parse(raw);
-        StorageDB.set('inbound_book_records', AppState.records);
       }
     }
   } catch (e) {
-    console.error('Failed to parse stored records', e);
     AppState.records = [];
   }
 
+  // 2. Render initial view
   reindexRecords();
   renderAllTables();
   updateKpiStats();
   updateLatestBookNoPlaceholder();
 
-  // 3. Sync strictly with Google Sheet database
-  syncInboundRecordsFromGas(false);
+  // 3. Immediately sync and strictly overwrite with Google Sheet database
+  await syncInboundRecordsFromGas(false);
 }
 
 function saveRecordsToStorage() {
@@ -4131,77 +4128,145 @@ function saveRecordsToStorage() {
 }
 
 async function syncInboundRecordsFromGas(isManual = false) {
-  if (!AppState.gasWebAppUrl) {
-    if (isManual) showToast('ยังไม่ได้ตั้งค่า Google Apps Script Web App URL', 'warning');
-    return;
+  if (isManual) {
+    showToast('กำลังเชื่อมต่อและดึงข้อมูลจาก Google Sheet...', 'info');
   }
 
-  try {
-    if (isManual) {
-      showToast('กำลังเชื่อมต่อและดึงข้อมูลจาก Google Sheet...', 'info');
-    }
+  let fetchedData = null;
 
-    const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getRecords&t=' + Date.now();
-    const res = await fetch(gasUrl);
-    const json = await res.json();
-
-    if (json && json.status === 'success' && Array.isArray(json.data)) {
-      if (json.data.length > 0) {
-        // Cache existing local file data by id and bookNo to preserve locally attached PDFs/images
-        const localFileCache = new Map();
-        (AppState.records || []).forEach(r => {
-          if (r.id) localFileCache.set(String(r.id), r);
-          if (r.bookNo) localFileCache.set('no_' + String(r.bookNo), r);
-        });
-
-        // Reconstruct records strictly from Google Sheets database
-        AppState.records = json.data.map((sheetRec, idx) => {
-          const cached = localFileCache.get(String(sheetRec.id)) || localFileCache.get('no_' + String(sheetRec.bookNo)) || {};
-
-          return {
-            id: sheetRec.id || cached.id || ('doc_row_' + (idx + 1)),
-            orderNo: sheetRec.orderNo || (idx + 1),
-            bookNo: sheetRec.bookNo || '-',
-            receiveDate: sheetRec.receiveDate || cached.receiveDate || '',
-            receiveTime: sheetRec.receiveTime || cached.receiveTime || '',
-            title: sheetRec.title || cached.title || '',
-            assignee: sheetRec.assignee || cached.assignee || '-',
-            status: sheetRec.status || cached.status || 'รอเสนอ ผอ.',
-            step: sheetRec.status === 'เสร็จสิ้น' ? 3 : (sheetRec.proposalData || cached.proposalData ? 2 : 1),
-            driveFileUrl: sheetRec.driveFileUrl || cached.driveFileUrl || '',
-            proposalData: sheetRec.proposalData || cached.proposalData || null,
-            directorData: sheetRec.directorData || cached.directorData || null,
-            stamp1Pos: cached.stamp1Pos || null,
-            stamp2Pos: cached.stamp2Pos || null,
-            stamp3Pos: cached.stamp3Pos || null,
-            originalDataUrl: cached.originalDataUrl || '',
-            stampedDataUrl: cached.stampedDataUrl || '',
-            fileName: cached.fileName || (sheetRec.bookNo ? `หนังสือรับ_${sheetRec.bookNo}.pdf` : 'เอกสาร.pdf'),
-            fileType: cached.fileType || 'application/pdf',
-            files: cached.files || [],
-            updatedAt: sheetRec.updatedAt || cached.updatedAt || new Date().toISOString()
-          };
-        });
-
-        reindexRecords();
-        saveRecordsToStorage();
-        renderAllTables();
-        updateKpiStats();
-        updateLatestBookNoPlaceholder();
-
-        if (isManual) {
-          showToast(`✓ ซิงค์ฐานข้อมูลสำเร็จ! แสดงข้อมูลตรงตาม Google Sheet ทั้งหมด ${AppState.records.length} รายการ`, 'success');
-        }
-      } else {
-        if (isManual) {
-          showToast('เชื่อมต่อฐานข้อมูล Google Sheet สำเร็จ แต่ยังไม่มีข้อมูลแถวในชีต InboundRecords', 'info');
+  // วิธีที่ 1: ดึงผ่าน Google Apps Script Web App API
+  if (AppState.gasWebAppUrl) {
+    try {
+      const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getRecords&t=' + Date.now();
+      const res = await fetch(gasUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.status === 'success' && Array.isArray(json.data)) {
+          fetchedData = json.data;
         }
       }
+    } catch (errGas) {
+      console.warn('Could not fetch from GAS Web App, attempting GViz fallback:', errGas);
     }
-  } catch (err) {
-    console.warn('Sync from Google Sheet failed:', err);
+  }
+
+  // วิธีที่ 2: ดึงตรงผ่าน Google Sheets GViz API (Fallback ความเร็วสูง เชื่อมต่อชีตโดยตรง)
+  if (fetchedData === null && AppState.sheetInboundId) {
+    try {
+      const gvizUrl = `https://docs.google.com/spreadsheets/d/${AppState.sheetInboundId}/gviz/tq?tqx=out:json&sheet=InboundRecords&t=${Date.now()}`;
+      const res = await fetch(gvizUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+        const gviz = JSON.parse(jsonStr);
+        const rows = gviz.table ? (gviz.table.rows || []) : [];
+        const records = [];
+
+        rows.forEach((r, idx) => {
+          const getVal = (colIdx) => {
+            const c = r.c ? r.c[colIdx] : null;
+            if (!c) return '';
+            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+          };
+
+          const id = String(getVal(0) || '').trim();
+          const orderNo = getVal(1) || (idx + 1);
+          const bookNo = String(getVal(2) || '').trim();
+          const title = String(getVal(5) || '').trim();
+
+          // ข้ามแถวหัวตาราง (Header)
+          if (id === 'ID' && (bookNo === 'เลขหนังสือรับ' || getVal(1) === 'ลำดับ')) return;
+          if (!id && !bookNo && !title) return;
+
+          let proposalData = null;
+          let directorData = null;
+          try {
+            const pVal = getVal(9);
+            if (pVal) proposalData = typeof pVal === 'string' ? JSON.parse(pVal) : pVal;
+          } catch (e) {}
+          try {
+            const dVal = getVal(10);
+            if (dVal) directorData = typeof dVal === 'string' ? JSON.parse(dVal) : dVal;
+          } catch (e) {}
+
+          records.push({
+            id: id || ('doc_row_' + (idx + 1)),
+            orderNo: Number(orderNo) || (idx + 1),
+            bookNo: bookNo || '-',
+            receiveDate: getVal(3) || '',
+            receiveTime: getVal(4) || '',
+            title: title || '',
+            assignee: getVal(6) || '-',
+            status: getVal(7) || 'รอเสนอ ผอ.',
+            driveFileUrl: getVal(8) || '',
+            proposalData: proposalData,
+            directorData: directorData,
+            updatedAt: getVal(11) || ''
+          });
+        });
+
+        fetchedData = records;
+      }
+    } catch (errGviz) {
+      console.warn('GViz fallback failed as well:', errGviz);
+    }
+  }
+
+  // ปรับปรุงข้อมูลตามฐานข้อมูลจริงเป็นหลักสูงสุด (Single Source of Truth)
+  if (Array.isArray(fetchedData)) {
+    // เก็บแคชไฟล์แนบหรือตราประทับในเครื่องไว้เฉพาะรายการที่ยังมีอยู่ในฐานข้อมูล
+    const localFileCache = new Map();
+    (AppState.records || []).forEach(r => {
+      if (r.id) localFileCache.set(String(r.id), r);
+      if (r.bookNo) localFileCache.set('no_' + String(r.bookNo), r);
+    });
+
+    // กำหนดรายการในระบบให้ตรงตามฐานข้อมูล Google Sheet 100%
+    AppState.records = fetchedData.map((sheetRec, idx) => {
+      const cached = localFileCache.get(String(sheetRec.id)) || localFileCache.get('no_' + String(sheetRec.bookNo)) || {};
+
+      return {
+        id: sheetRec.id || cached.id || ('doc_row_' + (idx + 1)),
+        orderNo: sheetRec.orderNo || (idx + 1),
+        bookNo: sheetRec.bookNo || '-',
+        receiveDate: sheetRec.receiveDate || cached.receiveDate || '',
+        receiveTime: sheetRec.receiveTime || cached.receiveTime || '',
+        title: sheetRec.title || cached.title || '',
+        assignee: sheetRec.assignee || cached.assignee || '-',
+        status: sheetRec.status || cached.status || 'รอเสนอ ผอ.',
+        step: sheetRec.status === 'เสร็จสิ้น' ? 3 : (sheetRec.proposalData || cached.proposalData ? 2 : 1),
+        driveFileUrl: sheetRec.driveFileUrl || cached.driveFileUrl || '',
+        proposalData: sheetRec.proposalData || cached.proposalData || null,
+        directorData: sheetRec.directorData || cached.directorData || null,
+        stamp1Pos: cached.stamp1Pos || null,
+        stamp2Pos: cached.stamp2Pos || null,
+        stamp3Pos: cached.stamp3Pos || null,
+        originalDataUrl: cached.originalDataUrl || '',
+        stampedDataUrl: cached.stampedDataUrl || '',
+        fileName: cached.fileName || (sheetRec.bookNo ? `หนังสือรับ_${sheetRec.bookNo}.pdf` : 'เอกสาร.pdf'),
+        fileType: cached.fileType || 'application/pdf',
+        files: cached.files || [],
+        updatedAt: sheetRec.updatedAt || cached.updatedAt || new Date().toISOString()
+      };
+    });
+
+    reindexRecords();
+    saveRecordsToStorage();
+    renderAllTables();
+    updateKpiStats();
+    updateLatestBookNoPlaceholder();
+
     if (isManual) {
-      showToast('ไม่สามารถดึงข้อมูลจาก Google Sheet ได้: ' + err.message, 'danger');
+      if (AppState.records.length > 0) {
+        showToast(`✓ ซิงค์ฐานข้อมูลสำเร็จ! ข้อมูลตรงตาม Google Sheet ทั้งหมด ${AppState.records.length} รายการ`, 'success');
+      } else {
+        showToast('✓ ฐานข้อมูล Google Sheet ปัจจุบันว่าง (0 รายการ) ระบบได้อัปเดตตรงตามฐานข้อมูลเรียบร้อย', 'info');
+      }
+    }
+  } else {
+    console.warn('Could not sync with Google Sheet database');
+    if (isManual) {
+      showToast('ไม่สามารถเชื่อมต่อฐานข้อมูล Google Sheet ได้ กรุณาตรวจสอบอินเทอร์เน็ต', 'danger');
     }
   }
 }
@@ -4991,87 +5056,149 @@ function generateAndDownloadDummyFile(fileName, content) {
 async function loadStoredOutboundAndOrderRecords() {
   try {
     const idbOut = await StorageDB.get('banSandap_outboundRecords');
-    if (Array.isArray(idbOut) && idbOut.length > 0) {
-      AppState.outboundRecords = idbOut;
-    } else {
-      const rawOut = localStorage.getItem('banSandap_outboundRecords');
-      if (rawOut) {
-        AppState.outboundRecords = JSON.parse(rawOut);
-        StorageDB.set('banSandap_outboundRecords', AppState.outboundRecords);
-      } else {
-        AppState.outboundRecords = [
-          {
-            id: 'out_1',
-            outboundNo: 'ศธ 04135.050/024',
-            date: '15/10/2569',
-            from: 'โรงเรียนบ้านสันดาบ',
-            to: 'ผู้อำนวยการ สพป.สมุทรสาคร',
-            title: 'รายงานสรุปผลการดำเนินงานโครงการพัฒนาคุณภาพการศึกษา ภาคเรียนที่ 1',
-            fileName: 'รายงานสรุปโครงการ_2569.pdf',
-            fileType: 'application/pdf',
-            fileDataUrl: null,
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'out_2',
-            outboundNo: 'ศธ 04135.050/023',
-            date: '10/10/2569',
-            from: 'โรงเรียนบ้านสันดาบ',
-            to: 'สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสมุทรสาคร',
-            title: 'ขออนุมัติจัดกิจกรรมค่ายวิชาการยกระดับผลสัมฤทธิ์ทางการเรียน',
-            fileName: 'ขออนุมัติจัดกิจกรรมค่ายวิชาการ.pdf',
-            fileType: 'application/pdf',
-            fileDataUrl: null,
-            createdAt: new Date().toISOString()
-          }
-        ];
-        saveOutboundRecordsToStorage();
-      }
-    }
+    AppState.outboundRecords = Array.isArray(idbOut) ? idbOut : [];
   } catch (e) {
     AppState.outboundRecords = [];
   }
 
   try {
     const idbOrd = await StorageDB.get('banSandap_orderRecords');
-    if (Array.isArray(idbOrd) && idbOrd.length > 0) {
-      AppState.orderRecords = idbOrd;
-    } else {
-      const rawOrd = localStorage.getItem('banSandap_orderRecords');
-      if (rawOrd) {
-        AppState.orderRecords = JSON.parse(rawOrd);
-        StorageDB.set('banSandap_orderRecords', AppState.orderRecords);
-      } else {
-        AppState.orderRecords = [
-          {
-            id: 'ord_1',
-            orderNo: '15/2569',
-            title: 'แต่งตั้งคณะกรรมการดำเนินการสอบวัดผลปลายภาคเรียนที่ 1 ปีการศึกษา 2569',
-            date: '12/10/2569',
-            assignedDuty: 'คณะกรรมการฝ่ายอำนวยการและจัดพิมพ์ข้อสอบ',
-            fileName: 'คำสั่งที่_15_2569_สอบวัดผล.pdf',
-            fileType: 'application/pdf',
-            fileDataUrl: null,
-            createdAt: new Date().toISOString()
-          },
-          {
-            id: 'ord_2',
-            orderNo: '14/2569',
-            title: 'แต่งตั้งคณะกรรมการจัดกิจกรรมวันภาษาไทยแห่งชาติ ประจำปี 2569',
-            date: '01/08/2569',
-            assignedDuty: 'คณะกรรมการฝ่ายกิจกรรมและการประกวด',
-            fileName: 'คำสั่งที่_14_2569_วันภาษาไทย.pdf',
-            fileType: 'application/pdf',
-            fileDataUrl: null,
-            createdAt: new Date().toISOString()
-          }
-        ];
-        saveOrderRecordsToStorage();
-      }
-    }
+    AppState.orderRecords = Array.isArray(idbOrd) ? idbOrd : [];
   } catch (e) {
     AppState.orderRecords = [];
   }
+
+  renderOutboundTable();
+  renderOrderTable();
+  updateOutboundStats();
+  updateOrderStats();
+
+  // ซิงค์ตรงกับฐานข้อมูล Google Sheet
+  await syncOutboundAndOrderFromDatabase();
+}
+
+async function syncOutboundAndOrderFromDatabase() {
+  // 1. ซิงค์ข้อมูลหนังสือส่งจากชีต OutboundRecords
+  try {
+    let outRecords = null;
+    if (AppState.gasWebAppUrl) {
+      try {
+        const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getOutboundRecords&t=' + Date.now();
+        const res = await fetch(gasUrl, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            outRecords = json.data;
+          }
+        }
+      } catch (eGas) {}
+    }
+    if (outRecords === null && AppState.sheetInboundId) {
+      const gvizOutUrl = `https://docs.google.com/spreadsheets/d/${AppState.sheetInboundId}/gviz/tq?tqx=out:json&sheet=OutboundRecords&t=${Date.now()}`;
+      const res = await fetch(gvizOutUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+        const gviz = JSON.parse(jsonStr);
+        const rows = gviz.table ? (gviz.table.rows || []) : [];
+        const records = [];
+        rows.forEach((r, idx) => {
+          const getVal = (colIdx) => {
+            const c = r.c ? r.c[colIdx] : null;
+            if (!c) return '';
+            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+          };
+          const id = String(getVal(0) || '').trim();
+          const outboundNo = String(getVal(2) || '').trim();
+          if (id === 'ID' && (outboundNo === 'เลขหนังสือส่ง' || getVal(1) === 'ลำดับ')) return;
+          if (!id && !outboundNo && !getVal(6)) return;
+
+          records.push({
+            id: id || ('out_' + (idx + 1)),
+            orderNo: Number(getVal(1)) || (idx + 1),
+            outboundNo: outboundNo,
+            date: getVal(3) || '',
+            from: getVal(4) || '',
+            to: getVal(5) || '',
+            title: getVal(6) || '',
+            fileName: getVal(7) || '',
+            driveFileUrl: getVal(8) || '',
+            createdAt: getVal(9) || ''
+          });
+        });
+        outRecords = records;
+      }
+    }
+    if (Array.isArray(outRecords)) {
+      AppState.outboundRecords = outRecords;
+      saveOutboundRecordsToStorage();
+    }
+  } catch (errOut) {
+    console.warn('Outbound sync failed:', errOut);
+  }
+
+  // 2. ซิงค์ข้อมูลคำสั่งจากชีต OrderRecords
+  try {
+    let ordRecords = null;
+    if (AppState.gasWebAppUrl) {
+      try {
+        const gasUrl = AppState.gasWebAppUrl + (AppState.gasWebAppUrl.includes('?') ? '&' : '?') + 'action=getOrderRecords&t=' + Date.now();
+        const res = await fetch(gasUrl, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            ordRecords = json.data;
+          }
+        }
+      } catch (eGas) {}
+    }
+    if (ordRecords === null && AppState.sheetInboundId) {
+      const gvizOrdUrl = `https://docs.google.com/spreadsheets/d/${AppState.sheetInboundId}/gviz/tq?tqx=out:json&sheet=OrderRecords&t=${Date.now()}`;
+      const res = await fetch(gvizOrdUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const text = await res.text();
+        const jsonStr = text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
+        const gviz = JSON.parse(jsonStr);
+        const rows = gviz.table ? (gviz.table.rows || []) : [];
+        const records = [];
+        rows.forEach((r, idx) => {
+          const getVal = (colIdx) => {
+            const c = r.c ? r.c[colIdx] : null;
+            if (!c) return '';
+            return (c.v !== null && c.v !== undefined) ? c.v : (c.f || '');
+          };
+          const id = String(getVal(0) || '').trim();
+          const orderNo = String(getVal(2) || '').trim();
+          if (id === 'ID' && (orderNo === 'ที่คำสั่ง' || getVal(1) === 'ลำดับ')) return;
+          if (!id && !orderNo && !getVal(3)) return;
+
+          records.push({
+            id: id || ('ord_' + (idx + 1)),
+            seqNo: Number(getVal(1)) || (idx + 1),
+            orderNo: orderNo,
+            title: getVal(3) || '',
+            date: getVal(4) || '',
+            assignedDuty: getVal(5) || '',
+            fileName: getVal(6) || '',
+            driveFileUrl: getVal(7) || '',
+            createdAt: getVal(8) || ''
+          });
+        });
+        ordRecords = records;
+      }
+    }
+    if (Array.isArray(ordRecords)) {
+      AppState.orderRecords = ordRecords;
+      saveOrderRecordsToStorage();
+    }
+  } catch (errOrd) {
+    console.warn('Order sync failed:', errOrd);
+  }
+
+  renderOutboundTable();
+  renderOrderTable();
+  updateOutboundStats();
+  updateOrderStats();
 }
 
 function saveOutboundRecordsToStorage() {

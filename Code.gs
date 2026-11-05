@@ -139,6 +139,10 @@ function doGet(e) {
         result = { status: 'success', data: getTeachersList() };
       } else if (action === 'getRecords') {
         result = { status: 'success', data: getInboundRecords() };
+      } else if (action === 'getOutboundRecords') {
+        result = { status: 'success', data: getOutboundRecords() };
+      } else if (action === 'getOrderRecords') {
+        result = { status: 'success', data: getOrderRecords() };
       } else if (action === 'cleanDuplicates') {
         result = cleanUpDuplicatesAndTests();
       } else if (action === 'cleanDrive') {
@@ -735,4 +739,61 @@ function deleteOrderRecord(id) {
     }
   }
   return { status: 'error', message: 'Not found' };
+}
+
+/**
+ * ดึงรายการหนังสือส่งจากชีต OutboundRecords
+ */
+function getOutboundRecords() {
+  const sheet = getOutboundSheet();
+  const rows = sheet.getDataRange().getDisplayValues();
+  if (rows.length <= 1) return [];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = String(r[0] || '').trim();
+    const outboundNo = String(r[2] || '').trim();
+    if (!id && !outboundNo && !r[6]) continue;
+    records.push({
+      id: id || ('out_' + (i + 1)),
+      orderNo: Number(r[1]) || i,
+      outboundNo: outboundNo,
+      date: r[3] || '',
+      from: r[4] || '',
+      to: r[5] || '',
+      title: r[6] || '',
+      fileName: r[7] || '',
+      driveFileUrl: r[8] || '',
+      createdAt: r[9] || ''
+    });
+  }
+  return records;
+}
+
+/**
+ * ดึงรายการคำสั่งจากชีต OrderRecords
+ */
+function getOrderRecords() {
+  const sheet = getOrderSheet();
+  const rows = sheet.getDataRange().getDisplayValues();
+  if (rows.length <= 1) return [];
+  const records = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = String(r[0] || '').trim();
+    const orderNo = String(r[2] || '').trim();
+    if (!id && !orderNo && !r[3]) continue;
+    records.push({
+      id: id || ('ord_' + (i + 1)),
+      seqNo: Number(r[1]) || i,
+      orderNo: orderNo,
+      title: r[3] || '',
+      date: r[4] || '',
+      assignedDuty: r[5] || '',
+      fileName: r[6] || '',
+      driveFileUrl: r[7] || '',
+      createdAt: r[8] || ''
+    });
+  }
+  return records;
 }
