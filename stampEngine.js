@@ -66,7 +66,7 @@ const StampEngine = (function () {
 
   function getStampAsset(stampKey) {
     // 1. Always prioritize current image files directly from folder with cache-busting
-    const ver = '25691105_10';
+    const ver = '25691105_11';
     if (stampKey === 'stamp1') return `./ตราปั้มหนังสือรับ.png?v=${ver}`;
     if (stampKey === 'stamp2') return `./ตราปั้มหนังสือรับ 2.png?v=${ver}`;
     if (stampKey === 'stamp3') return `./ตราปั้มหนังสือรับ 3.png?v=${ver}`;
@@ -386,78 +386,112 @@ const StampEngine = (function () {
     ctx.drawImage(img, 0, 0, 1619, 972);
 
     // Checkboxes Row 1 (center Y = 283)
-    // ทราบ: X = 183, Y = 283
-    if (checkboxes.ack) drawCheckmark(ctx, 183, 283, 38);
+    // ทราบ: X = 183.5, Y = 283
+    if (checkboxes.ack) drawCheckmark(ctx, 183.5, 283, 40);
     // ดำเนินการตาม: X = 726, Y = 283
-    if (checkboxes.follow) drawCheckmark(ctx, 726, 283, 38);
+    if (checkboxes.follow) drawCheckmark(ctx, 726, 283, 40);
 
-    // Checkboxes Row 2 (center Y = 391)
-    // เห็นชอบ: X = 183, Y = 391
-    if (checkboxes.agree) drawCheckmark(ctx, 183, 391, 38);
-    // อนุมัติ: X = 726, Y = 391
-    if (checkboxes.approve) drawCheckmark(ctx, 726, 391, 38);
+    // Checkboxes Row 2 (center Y = 390)
+    // เห็นชอบ: X = 183.5, Y = 390
+    if (checkboxes.agree) drawCheckmark(ctx, 183.5, 390, 40);
+    // อนุมัติ: X = 726, Y = 390
+    if (checkboxes.approve) drawCheckmark(ctx, 726, 390, 40);
 
     ctx.fillStyle = STAMP_BLUE;
-    ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
     ctx.textBaseline = 'bottom';
 
-    // Comment Line 1 (Above dots at Y=502 -> baseline at Y=492)
-    if (comment) {
-      ctx.fillText(comment, 180, 492);
-    }
-
-    // Assignee Line 2 (Above dots at Y=585 -> baseline at Y=575)
-    if (assignee) {
-      const assigneeText = 'มอบ: ' + assignee;
-      const maxAssigneeW = 1360; // Available width before right border
-      let fontSize = 46;
-      ctx.font = `bold ${fontSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
-      let textW = ctx.measureText(assigneeText).width;
-      while (textW > maxAssigneeW && fontSize > 20) {
-        fontSize -= 2;
-        ctx.font = `bold ${fontSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
-        textW = ctx.measureText(assigneeText).width;
+    // Helper: Draw single line text with auto font downscaling to fit available width
+    function fitAndDrawText(text, x, y, maxW = 1340, baseSize = 44, minSize = 24) {
+      if (!text) return;
+      let size = baseSize;
+      ctx.font = `bold ${size}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
+      let textW = ctx.measureText(text).width;
+      while (textW > maxW && size > minSize) {
+        size -= 2;
+        ctx.font = `bold ${size}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
+        textW = ctx.measureText(text).width;
       }
-      ctx.fillText(assigneeText, 180, 575);
-      // Reset font back to default
-      ctx.font = 'bold 46px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
+      ctx.fillText(text, x, y);
+      ctx.font = `bold ${baseSize}px "Sarabun", "TH Sarabun New", "Kanit", sans-serif`;
     }
 
-    // Signature strictly ABOVE dots on "ลงชื่อ...................." (dots at Y=695) with scalable sizing anchored close to baseline
+    // Dotted Lines:
+    // Line 1: Dotted line at Y = 502 -> baseline at Y = 496
+    // Line 2: Dotted line at Y = 585 -> baseline at Y = 579
+    const trimmedComment = (comment || '').trim();
+    const trimmedAssignee = (assignee || '').trim();
+
+    let line1Text = '';
+    let line2Text = '';
+
+    if (trimmedComment && trimmedAssignee) {
+      // Both present: Comment on Line 1, Assignee on Line 2
+      line1Text = trimmedComment;
+      line2Text = 'มอบ: ' + trimmedAssignee;
+    } else if (trimmedComment && !trimmedAssignee) {
+      // Only comment present: Check length to fit on Line 1 or wrap across Line 1 & Line 2
+      ctx.font = 'bold 44px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
+      if (ctx.measureText(trimmedComment).width > 1340) {
+        let words = trimmedComment.split(' ');
+        if (words.length > 1) {
+          let mid = Math.ceil(words.length / 2);
+          line1Text = words.slice(0, mid).join(' ');
+          line2Text = words.slice(mid).join(' ');
+        } else {
+          let mid = Math.ceil(trimmedComment.length / 2);
+          line1Text = trimmedComment.slice(0, mid);
+          line2Text = trimmedComment.slice(mid);
+        }
+      } else {
+        line1Text = trimmedComment;
+      }
+    } else if (!trimmedComment && trimmedAssignee) {
+      // Only assignee present: Place on Line 1 for natural appearance
+      line1Text = 'มอบ: ' + trimmedAssignee;
+    }
+
+    if (line1Text) fitAndDrawText(line1Text, 180, 496);
+    if (line2Text) fitAndDrawText(line2Text, 180, 579);
+
+    // Signature strictly on Line 3 "ลงชื่อ...................." (dots at Y=695)
+    // Horizontal dot range: X=604 to X=1317 (Center X=960.5)
+    // Vertical available space: Line 2 (Y=585) to Line 3 (Y=695) = 110px
     if (signatureDataUrl) {
       try {
         const rawSigImg = await loadImage(signatureDataUrl);
         const sigImg = trimSignatureImage(rawSigImg);
         const scaleMultiplier = Math.max(0.4, Math.min(2.5, Number(signatureScale) || 1.0));
-        const maxW = 540 * scaleMultiplier;
-        const maxH = 145 * scaleMultiplier;
+        const maxW = 500 * scaleMultiplier;
+        const maxH = 92 * scaleMultiplier;
         const scale = Math.min(maxW / sigImg.width, maxH / sigImg.height);
         const w = sigImg.width * scale;
         const h = sigImg.height * scale;
-        // Center X = 980 (center of dotted line X=695 to X=1316), bottom anchored at Y = 694 (just 1px above dots at Y=695)
-        ctx.drawImage(sigImg, 980 - w / 2, 694 - h, w, h);
+        // Center X = 960, bottom anchored at Y = 692 (just 3px above dots at Y=695)
+        ctx.drawImage(sigImg, 960 - w / 2, 692 - h, w, h);
       } catch (e) {
         console.warn('Failed to draw signature 3', e);
       }
     }
 
-    // Date on New Stamp 3: Formatted as Day before 1st '/', Month before 2nd '/', Year after 2nd '/'
-    // Slashes on new stamp 3: Slash 1 at X=754, Slash 2 at X=1057. Dots at Y=786 -> baseline at Y=776
-    // Note: The new Stamp 3 design removed the director name in parentheses line completely.
+    // Date on Stamp 3: Formatted as Day before 1st '/', Month before 2nd '/', Year after 2nd '/'
+    // Slashes on new stamp 3: Slash 1 at X=750, Slash 2 at X=1052.
+    // Dots range: Day (483..735, center=609), Month (765..1039, center=902), Year (1067..1304, center=1185)
+    // Dots at Y=786 -> baseline at Y=780
     if (date) {
       const { day, month, year } = parseDateSegments(date);
       ctx.textAlign = 'center';
-      // 1. วัน อยู่หน้า / (Center X = 620)
+      ctx.font = 'bold 42px "Sarabun", "TH Sarabun New", "Kanit", sans-serif';
+      // 1. วัน อยู่หน้า / (Center X = 609)
       if (day) {
-        ctx.fillText(day, 620, 776);
+        ctx.fillText(day, 609, 780);
       }
-      // 2. เดือน อยู่หน้า / (Center X = 905, between slashes)
+      // 2. เดือน ระหว่าง / (Center X = 902)
       if (month) {
-        ctx.fillText(month, 905, 776);
+        ctx.fillText(month, 902, 780);
       }
-      // 3. ปี หลัง / (Center X = 1180)
+      // 3. ปี หลัง / (Center X = 1185)
       if (year) {
-        ctx.fillText(year, 1180, 776);
+        ctx.fillText(year, 1185, 780);
       }
       ctx.textAlign = 'start';
     }
